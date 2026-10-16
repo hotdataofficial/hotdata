@@ -1,1 +1,1 @@
-export function proofStorageAvailable(env: Record<string,string|undefined> = process.env) { return env.NETLIFY !== "true" && env.HOTDATA_WORKER_MODE !== "netlify" && env.VERCEL !== "1" && env.PROOF_STORAGE_DISABLED !== "true"; }
+export function proofStorageAvailable(env: Record<string,string|undefined> = process.env) { return !env.SITE_ID && env.NETLIFY !== "true" && env.HOTDATA_WORKER_MODE !== "netlify" && env.VERCEL !== "1" && env.PROOF_STORAGE_DISABLED !== "true"; }
