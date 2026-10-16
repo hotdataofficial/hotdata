@@ -1,4 +1,3 @@
-import { SignJWT, jwtVerify } from "jose";
 import type { NextRequest, NextResponse } from "next/server";
 import type { Prisma, User } from "@prisma/client";
 import { db } from "../db";
@@ -8,12 +7,14 @@ import { clientIp, HttpError } from "../security/http";
 const encoder = new TextEncoder();
 export type Actor = Pick<User, "id" | "role" | "fullName" | "email" | "phone" | "emailVerifiedAt" | "phoneVerifiedAt" | "pinHash"> & { sessionId: string };
 async function sign(user: Pick<User, "id" | "authVersion">, sessionId: string, kind: "access" | "refresh") {
+  const { SignJWT } = await import("jose");
   const env = config();
   return new SignJWT({ sid: sessionId, ver: user.authVersion, kind }).setProtectedHeader({ alg: "HS256", typ: "JWT" }).setSubject(user.id).setJti(randomToken()).setIssuer(env.JWT_ISSUER).setAudience(env.JWT_AUDIENCE).setIssuedAt().setExpirationTime(Math.floor(Date.now() / 1000) + (kind === "access" ? env.JWT_ACCESS_TTL_SECONDS : env.JWT_REFRESH_TTL_SECONDS)).sign(encoder.encode(kind === "access" ? env.JWT_ACCESS_SECRET : env.JWT_REFRESH_SECRET));
 }
 export async function decode(token: string, kind: "access" | "refresh") {
   const env = config();
   try {
+    const { jwtVerify } = await import("jose");
     const { payload } = await jwtVerify(token, encoder.encode(kind === "access" ? env.JWT_ACCESS_SECRET : env.JWT_REFRESH_SECRET), { algorithms: ["HS256"], issuer: env.JWT_ISSUER, audience: env.JWT_AUDIENCE });
     if (payload.kind !== kind || typeof payload.sid !== "string" || typeof payload.sub !== "string" || typeof payload.ver !== "number") throw new Error("claims");
     return { userId: payload.sub, sessionId: payload.sid, version: payload.ver };
@@ -63,3 +64,4 @@ export async function rotateSession(req: NextRequest) {
   if (!result) throw new HttpError(401, "Please sign in again.");
   return result;
 }
+
