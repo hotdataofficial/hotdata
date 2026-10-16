@@ -1,6 +1,17 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { GsubzProvider, gsubzResult } from "../../src/server/providers/gsubz";
+import { GsubzProvider, gsubzResult, gsubzStatusResult } from "../../src/server/providers/gsubz";
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();});
+it("recognizes the documented verification response without weakening purchase validation",()=>{
+ const response={code:"200",status:"success",description:"TRANSACTION_SUCCESSFUL",api_response:"private delivery details"};
+ expect(gsubzStatusResult(response)).toEqual({status:"SUCCESSFUL",code:"GSUBZ_DELIVERED"});
+ expect(gsubzResult(response).status).toBe("UNKNOWN");
+ for(const patch of [{status:"pending"},{code:502},{description:"CONTENT_NOT_FOUND"}])expect(gsubzStatusResult({...response,...patch}).status).toBe("UNKNOWN");
+});
+it("queries the original reference and never calls the purchase endpoint during reconciliation",async()=>{
+ vi.stubEnv("GSUBZ_API_KEY","fixture");const send=vi.fn().mockResolvedValue(new Response(JSON.stringify({code:"200",status:"success",description:"TRANSACTION_SUCCESSFUL"})));vi.stubGlobal("fetch",send);
+ expect((await new GsubzProvider().checkStatus("original-reference")).status).toBe("SUCCESSFUL");
+ expect(send).toHaveBeenCalledTimes(1);expect(send.mock.calls[0][0]).toBe("https://api.gsubz.com/api/verify/");expect(send.mock.calls[0][1].body.get("requestID")).toBe("original-reference");
+});
 it("blocks real purchases in payment sandbox",async()=>{vi.stubEnv("GSUBZ_API_KEY","fixture");vi.stubEnv("GSUBZ_ALLOW_LIVE","true");vi.stubEnv("KORAPAY_ALLOW_LIVE","false");var call=vi.fn();vi.stubGlobal("fetch",call);await expect(new GsubzProvider().buyData({reference:"HD-test",phone:"+2348031234567",networkCode:"MTN",providerPlanCode:"mtn_sme:260"})).rejects.toMatchObject({status:503});expect(call).not.toHaveBeenCalled();});
 it("preserves uncertain outcomes for reconciliation",()=>{for(var value of [{code:502,status:"failed",description:"GATEWAY_ERROR"},{code:404,status:"failed",description:"CONTENT_NOT_FOUND"},{code:200,status:"pending"},{code:200,status:"successful"}])expect(gsubzResult(value).status).toBe("UNKNOWN");expect(gsubzResult({code:406,status:"successful",transactionID:123}).status).toBe("SUCCESSFUL");expect(gsubzResult({code:402,status:"failed",description:"INSUFFICIENT_BALANCE"}).status).toBe("FAILED");});
 it("never sends the API key to a configurable foreign host",()=>{expect(()=>new GsubzProvider("https://example.com")).toThrow();});

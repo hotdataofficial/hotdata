@@ -13,6 +13,13 @@ async function inspectFunding(key){
  }finally{await db.$disconnect()}
 }
 async function request(url,options={}){const r=await fetch(url,{...options,redirect:"error",signal:AbortSignal.timeout(15000)});const body=await r.json();return {ok:r.ok,http:r.status,body};}
+async function inspectDelivery(key){
+ const {PrismaClient}=require("@prisma/client");const db=new PrismaClient();
+ try{const attempts=await db.providerAttempt.findMany({where:{status:"PENDING",provider:{code:"GSUBZ"}},take:5,orderBy:{createdAt:"desc"},select:{reference:true}});const checks=[];
+ for(const attempt of attempts){try{const r=await request("https://api.gsubz.com/api/verify/",{method:"POST",headers:{Authorization:"Bearer "+key,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({api:key,requestID:attempt.reference})});const d=r.body;checks.push({http:r.http,code:/^\d{3}$/.test(String(d.code))?String(d.code):"OTHER",status:["success","successful","failed","pending","processing"].includes(d.status)?d.status:"OTHER",description:/^[A-Z_]{1,80}$/.test(d.description||"")?d.description:"OTHER",hasTransactionId:!!d.transactionID,fieldNames:Object.keys(d).filter(k=>/^[a-zA-Z_]{1,40}$/.test(k))})}catch{checks.push({verificationUnavailable:true})}}
+ console.log("HOTDATA_PENDING_DELIVERY_CHECK "+JSON.stringify(checks));
+ }finally{await db.$disconnect()}
+}
 (async()=>{
  const result={korapay:{liveKeyConfigured:false,authenticated:false},gsubz:{authenticated:false,funded:false,affordablePlans:0,totalPlans:0}};
  const key=(process.env.KORAPAY_SECRET_KEY||"").trim();
@@ -23,6 +30,7 @@ async function request(url,options={}){const r=await fetch(url,{...options,redir
  }
  const providerKey=process.env.GSUBZ_API_KEY;
  if(providerKey){
+  try{await inspectDelivery(providerKey)}catch{console.log("HOTDATA_PENDING_DELIVERY_CHECK unavailable")}
   try{
    const r=await request("https://api.gsubz.com/api/balance/",{method:"POST",headers:{Authorization:"Bearer "+providerKey,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({api:providerKey})});
    if(r.ok&&r.body.balance!==undefined){
@@ -34,4 +42,3 @@ async function request(url,options={}){const r=await fetch(url,{...options,redir
  }
  console.log("HOTDATA_LIVE_READINESS "+JSON.stringify(result));
 })();
-

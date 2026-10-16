@@ -15,6 +15,14 @@ export function gsubzResult(value: unknown): ProviderResult {
   if (data.status === "failed" && ["REQUIRED_CONTENT_NOT_SENT","INVALID_CONTENT","INVALID_PLAN","INVALID_API_OR_NOT_FOUND","INSUFFICIENT_BALANCE","REQUEST_METHOD_NOT_IN_POST","SERVICE_DISABLED"].includes(String(data.description))) return {status:"FAILED",code:String(data.description)};
   return {status:"UNKNOWN",code:"GSUBZ_UNCERTAIN"};
 }
+export function gsubzStatusResult(value: unknown): ProviderResult {
+  // The status endpoint uses a different contract from the purchase endpoint.
+  if (value && typeof value === "object") {
+    const data = value as Record<string, unknown>;
+    if (Number(data.code) === 200 && data.status === "success" && data.description === "TRANSACTION_SUCCESSFUL") return { status: "SUCCESSFUL", code: "GSUBZ_DELIVERED" };
+  }
+  return gsubzResult(value);
+}
 export class GsubzProvider implements VtuProvider {
   constructor(baseUrl = origin) { if (baseUrl.replace(/\/$/, "") !== origin) throw new HttpError(400,"Gsubz must use its official API URL."); }
   private async post(path: string, fields: Record<string,string>) {
@@ -46,7 +54,7 @@ export class GsubzProvider implements VtuProvider {
     catch { return sending ? {status:"UNKNOWN" as const,code:"GSUBZ_UNCERTAIN"} : {status:"FAILED" as const,code:"GSUBZ_PRICE_CHECK_FAILED"}; }
   }
   async buyAirtime(): Promise<never> { throw new HttpError(503,"Gsubz airtime is not enabled."); }
-  async checkStatus(reference: string) { try { return gsubzResult(await this.post("/api/verify/",{requestID:reference})); } catch { return {status:"UNKNOWN" as const,code:"GSUBZ_UNCERTAIN"}; } }
+  async checkStatus(reference: string) { try { return gsubzStatusResult(await this.post("/api/verify/",{requestID:reference})); } catch { return {status:"UNKNOWN" as const,code:"GSUBZ_UNCERTAIN"}; } }
   async getBalance() { const result=await this.post("/api/balance/",{}); if (typeof result.balance !== "string" && typeof result.balance !== "number") throw new HttpError(502,"Invalid Gsubz balance response."); return parseNaira(String(result.balance)); }
   async getPlans(): Promise<{code:string;name:string}[]> { return (await fetchGsubzCatalog()).plans.map(plan=>({code:plan.providerPlanCode,name:plan.name})); }
 }
