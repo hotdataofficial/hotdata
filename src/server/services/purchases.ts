@@ -4,6 +4,7 @@ import type { Prisma, User } from "@prisma/client";
 import { lockAgentKey } from "../auth/api-keys";
 import { purchaseFinalEvents } from "./referrals";
 import { db } from "../db";
+import { wakeNetlifyWorker } from "../jobs/netlify-trigger";
 import { HttpError } from "../security/http";
 import { lockUser, verifyPinInTransaction } from "../auth/accounts";
 import { moveMoney } from "./wallet";
@@ -34,7 +35,7 @@ export async function stageDataPurchase(tx:Prisma.TransactionClient,user:User,in
     await tx.notification.create({ data: { userId, title: "Data purchase processing", body: "Reference: " + purchase.reference + ". Delivery is awaiting provider confirmation." } });
 
 return purchase;}
-export async function createPurchase(userId:string,input:z.infer<typeof purchaseSchema>,ready=isAdapterReady,context:PurchaseContext={}){const result=await db.$transaction(async tx=>{const user=await lockUser(tx,userId);if(context.apiKeyId)await lockAgentKey(tx,userId,context.apiKeyId);const prior=await priorPurchase(tx,userId,input,context);if(prior)return {purchase:prior};const pin=await verifyPinInTransaction(tx,userId,input.pin);if(!pin.ok)return {error:pin.error};return {purchase:await stageDataPurchase(tx,user,input,ready,context)};},{timeout:15000});if(!result.purchase)throw new HttpError(400,result.error||"Purchase unavailable.");return purchaseView(result.purchase);}
+export async function createPurchase(userId:string,input:z.infer<typeof purchaseSchema>,ready=isAdapterReady,context:PurchaseContext={}){const result=await db.$transaction(async tx=>{const user=await lockUser(tx,userId);if(context.apiKeyId)await lockAgentKey(tx,userId,context.apiKeyId);const prior=await priorPurchase(tx,userId,input,context);if(prior)return {purchase:prior};const pin=await verifyPinInTransaction(tx,userId,input.pin);if(!pin.ok)return {error:pin.error};return {purchase:await stageDataPurchase(tx,user,input,ready,context)};},{timeout:15000});if(!result.purchase)throw new HttpError(400,result.error||"Purchase unavailable.");await wakeNetlifyWorker();return purchaseView(result.purchase);}
 
 function safeResult(result: ProviderResult): ProviderResult {
   if (!["SUCCESSFUL", "FAILED", "UNKNOWN"].includes(result?.status)) return { status: "UNKNOWN", code: "INVALID_RESPONSE" };

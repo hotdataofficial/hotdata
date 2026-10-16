@@ -3,9 +3,9 @@ import { db } from "../db";
 import { sendEmail } from "./delivery";
 import { formatKobo } from "@/lib/money";
 import { config } from "../config";
-export async function dispatchPurchaseEmails() {
+export async function dispatchPurchaseEmails(limit = 20) {
   let delivered = 0;
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < Math.min(20, limit); i++) {
     const event = await db.$transaction(async tx => {
       const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "OutboxEvent" WHERE kind = 'EMAIL_PURCHASE' AND "deliveredAt" IS NULL AND "availableAt" <= NOW() AND attempts < 10 ORDER BY "createdAt" FOR UPDATE SKIP LOCKED LIMIT 1`;
       if (!rows[0]) return null;

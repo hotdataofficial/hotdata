@@ -1,0 +1,19 @@
+[build]
+  command = "node scripts/prepare-netlify.mjs && npm run db:generate && npm run build"
+  publish = ".next"
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  external_node_modules = ["@prisma/client", "argon2"]
+  included_files = ["node_modules/.prisma/client/**"]
+[context.deploy-preview.environment]
+  HOTDATA_WORKER_MODE = "disabled"
+  KORAPAY_ALLOW_LIVE = "false"
+  GSUBZ_ALLOW_LIVE = "false"
+[context.branch-deploy.environment]
+  HOTDATA_WORKER_MODE = "disabled"
+  KORAPAY_ALLOW_LIVE = "false"
+  GSUBZ_ALLOW_LIVE = "false"
