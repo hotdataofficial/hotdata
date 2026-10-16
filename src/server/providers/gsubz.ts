@@ -3,14 +3,24 @@ import { HttpError } from "../security/http";
 import { parseNaira } from "@/lib/money";
 import type { DataOrder, ProviderResult, VtuProvider } from "./types";
 const origin = "https://api.gsubz.com";
+// Supplier discounts can contain sub-kobo fractions (e.g. 380.58461538462).
+// Round once to the nearest kobo with decimal arithmetic, never binary floats.
+export function gsubzCost(input: unknown): bigint {
+  if (typeof input !== "string" && typeof input !== "number") throw new Error("Invalid supplier amount");
+  const text = String(input).trim();
+  if (!/^\d{1,12}(?:\.\d{1,15})?$/.test(text)) throw new Error("Invalid supplier amount");
+  const [whole, fraction = ""] = text.split(".");
+  return BigInt(whole) * 100n + BigInt(fraction.slice(0, 2).padEnd(2, "0")) + (Number(fraction[2] || "0") >= 5 ? 1n : 0n);
+}
 export function gsubzPurchasesEnabled() { return process.env.GSUBZ_ALLOW_LIVE === "true" && process.env.KORAPAY_ALLOW_LIVE === "true" && !!process.env.GSUBZ_API_KEY; }
 export function gsubzResult(value: unknown): ProviderResult {
   if (!value || typeof value !== "object") return {status:"UNKNOWN",code:"INVALID_RESPONSE"};
   const data = value as Record<string, unknown>;
   if (Number(data.code) === 407) return { status: "FAILED", code: "API_ACCESS_NOT_ENABLED" };
   if (data.status === "successful" && [200,406].includes(Number(data.code)) && data.transactionID) {
-    try { const costKobo = data.amountPaid === undefined ? undefined : parseNaira(String(data.amountPaid)).toString(); return {status:"SUCCESSFUL",code:"GSUBZ_DELIVERED",...(costKobo ? {costKobo} : {})}; }
-    catch { return {status:"UNKNOWN",code:"INVALID_PROVIDER_COST"}; }
+    const providerTransactionId = /^\d{1,30}$/.test(String(data.transactionID)) ? String(data.transactionID) : undefined;
+    try { const costKobo = data.amountPaid === undefined ? undefined : gsubzCost(data.amountPaid).toString(); return {status:"SUCCESSFUL",code:"GSUBZ_DELIVERED",...(costKobo ? {costKobo} : {}),...(providerTransactionId ? {providerTransactionId} : {})}; }
+    catch { return {status:"UNKNOWN",code:"INVALID_PROVIDER_COST",...(providerTransactionId ? {providerTransactionId} : {})}; }
   }
   // Gateway errors, missing records and duplicate outcomes require reconciliation.
   if (data.status === "failed" && ["REQUIRED_CONTENT_NOT_SENT","INVALID_CONTENT","INVALID_PLAN","INVALID_API_OR_NOT_FOUND","INSUFFICIENT_BALANCE","REQUEST_METHOD_NOT_IN_POST","SERVICE_DISABLED","ACCOUNT_BLOCKED"].includes(String(data.description))) return {status:"FAILED",code:String(data.description)};
@@ -20,7 +30,10 @@ export function gsubzStatusResult(value: unknown): ProviderResult {
   // The status endpoint uses a different contract from the purchase endpoint.
   if (value && typeof value === "object") {
     const data = value as Record<string, unknown>;
-    if (Number(data.code) === 200 && data.status === "success" && data.description === "TRANSACTION_SUCCESSFUL") return { status: "SUCCESSFUL", code: "GSUBZ_DELIVERED" };
+    if (Number(data.code) === 200 && data.status === "success" && data.description === "TRANSACTION_SUCCESSFUL") {
+      try { return { status: "SUCCESSFUL", code: "GSUBZ_DELIVERED", ...(data.amount !== undefined ? {costKobo:gsubzCost(data.amount).toString()} : {}) }; }
+      catch { return {status:"UNKNOWN",code:"INVALID_PROVIDER_COST"}; }
+    }
   }
   return gsubzResult(value);
 }
@@ -57,7 +70,7 @@ export class GsubzProvider implements VtuProvider {
     catch { return sending ? {status:"UNKNOWN" as const,code:"GSUBZ_UNCERTAIN"} : {status:"FAILED" as const,code:"GSUBZ_PRICE_CHECK_FAILED"}; }
   }
   async buyAirtime(): Promise<never> { throw new HttpError(503,"Gsubz airtime is not enabled."); }
-  async checkStatus(reference: string) { try { return gsubzStatusResult(await this.post("/api/verify/",{requestID:reference})); } catch { return {status:"UNKNOWN" as const,code:"GSUBZ_UNCERTAIN"}; } }
-  async getBalance() { const result=await this.post("/api/balance/",{}); if (typeof result.balance !== "string" && typeof result.balance !== "number") throw new HttpError(502,"Invalid Gsubz balance response."); return parseNaira(String(result.balance)); }
+  async checkStatus(reference: string, providerTransactionId?: string) { const id = providerTransactionId && /^\d{1,30}$/.test(providerTransactionId) ? providerTransactionId : undefined; try { return {...gsubzStatusResult(await this.post("/api/verify/",{requestID:id || reference})), ...(id ? {providerTransactionId:id} : {})}; } catch { return {status:"UNKNOWN" as const,code:"GSUBZ_UNCERTAIN",...(id ? {providerTransactionId:id} : {})}; } }
+  async getBalance() { const result=await this.post("/api/balance/",{}); if (typeof result.balance !== "string" && typeof result.balance !== "number") throw new HttpError(502,"Invalid Gsubz balance response."); return gsubzCost(result.balance); }
   async getPlans(): Promise<{code:string;name:string}[]> { return (await fetchGsubzCatalog()).plans.map(plan=>({code:plan.providerPlanCode,name:plan.name})); }
 }

@@ -40,7 +40,7 @@ export async function createPurchase(userId:string,input:z.infer<typeof purchase
 function safeResult(result: ProviderResult): ProviderResult {
   if (!["SUCCESSFUL", "FAILED", "UNKNOWN"].includes(result?.status)) return { status: "UNKNOWN", code: "INVALID_RESPONSE" };
   // Persist only a compact status code, never raw provider payloads or secrets.
-  return { status: result.status, code: /^[A-Z0-9_-]{1,64}$/.test(result.code) ? result.code : "REDACTED", ...(result.status === "SUCCESSFUL" && result.costKobo && /^[1-9]\d{0,14}$/.test(result.costKobo) ? {costKobo:result.costKobo} : {}) };
+  return { status: result.status, code: /^[A-Z0-9_-]{1,64}$/.test(result.code) ? result.code : "REDACTED", ...(result.status === "SUCCESSFUL" && result.costKobo && /^[1-9]\d{0,14}$/.test(result.costKobo) ? {costKobo:result.costKobo} : {}), ...(result.providerTransactionId && /^\d{1,30}$/.test(result.providerTransactionId) ? {providerTransactionId:result.providerTransactionId} : {}) };
 }
 async function bounded<T>(operation: Promise<T>, deadlineMs=10000): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -72,7 +72,9 @@ export async function processPurchase(transactionId: string, factory: ProviderFa
   if (claimed.attempt) {
     try {
       const adapter = factory(claimed.attempt.provider);
-      result = safeResult(await bounded(claimed.send ? adapter.buyData({ reference: claimed.attempt.reference, phone: claimed.order.phone, providerPlanCode: claimed.attempt.providerPlanCode, networkCode: claimed.attempt.networkCode, expectedCostKobo: claimed.order.costKobo.toString() }) : adapter.checkStatus(claimed.attempt.reference), claimed.attempt.provider.adapter === "gsubz" ? 85000 : 10000));
+      const priorResult = claimed.attempt.responseRedacted;
+      const supplierId = priorResult && typeof priorResult === "object" && !Array.isArray(priorResult) && typeof priorResult.providerTransactionId === "string" ? priorResult.providerTransactionId : undefined;
+      result = safeResult(await bounded(claimed.send ? adapter.buyData({ reference: claimed.attempt.reference, phone: claimed.order.phone, providerPlanCode: claimed.attempt.providerPlanCode, networkCode: claimed.attempt.networkCode, expectedCostKobo: claimed.order.costKobo.toString() }) : adapter.checkStatus(claimed.attempt.reference, supplierId), claimed.attempt.provider.adapter === "gsubz" ? 85000 : 10000));
     } catch { result = { status: "UNKNOWN", code: "PROVIDER_UNCERTAIN" }; }
   }
   await db.$transaction(async tx => {
@@ -81,7 +83,7 @@ export async function processPurchase(transactionId: string, factory: ProviderFa
     await tx.$queryRaw`SELECT id FROM "Transaction" WHERE id = ${transactionId} FOR UPDATE`;
     const current = await tx.transaction.findUniqueOrThrow({ where: { id: transactionId } });
     if (current.status !== "PENDING" || current.processingToken !== token) return;
-    if (claimed.attempt) await tx.providerAttempt.update({ where: { id: claimed.attempt.id }, data: { status: result.status === "UNKNOWN" ? "PENDING" : result.status, responseRedacted: { status: result.status, code: result.code } } });
+    if (claimed.attempt) await tx.providerAttempt.update({ where: { id: claimed.attempt.id }, data: { status: result.status === "UNKNOWN" ? "PENDING" : result.status, responseRedacted: { status: result.status, code: result.code, ...(result.providerTransactionId ? {providerTransactionId:result.providerTransactionId} : {}) } } });
     const release = { processingUntil: null, processingToken: null };
     if (result.status === "UNKNOWN") { await tx.transaction.update({ where: { id: transactionId }, data: release }); return; }
     if (result.status === "FAILED" && claimed.attempt) {

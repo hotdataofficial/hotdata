@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { GsubzProvider, gsubzResult, gsubzStatusResult } from "../../src/server/providers/gsubz";
+import { GsubzProvider, gsubzCost, gsubzResult, gsubzStatusResult } from "../../src/server/providers/gsubz";
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();});
 it("preserves an explicit API-access rejection on HTTP 403 without spending again",async()=>{
  vi.stubEnv("GSUBZ_API_KEY"," fixture ");vi.stubEnv("GSUBZ_ALLOW_LIVE","true");vi.stubEnv("KORAPAY_ALLOW_LIVE","true");
@@ -38,5 +38,18 @@ it("treats a failed preflight as uncharged, and transport failure after sending 
 });
 it("records the exact supplier deduction and rejects malformed cost",()=>{
  expect(gsubzResult({code:200,status:"successful",transactionID:123,amountPaid:"2284.56"})).toMatchObject({status:"SUCCESSFUL",costKobo:"228456"});
- expect(gsubzResult({code:200,status:"successful",transactionID:123,amountPaid:"1.001"}).status).toBe("UNKNOWN");
+ expect(gsubzResult({code:200,status:"successful",transactionID:123,amountPaid:"not-money"}).status).toBe("UNKNOWN");
+});
+it("rounds supplier sub-kobo discounts once using decimal arithmetic",()=>{
+ expect(gsubzCost("380.58461538462")).toBe(38058n);
+ expect(gsubzCost("380.585")).toBe(38059n);
+ expect(gsubzCost("0.005")).toBe(1n);
+ for(const value of [null,"-1","NaN","1e3","1,000"]) expect(()=>gsubzCost(value)).toThrow();
+ expect(gsubzResult({code:200,status:"successful",transactionID:123,amountPaid:"380.58461538462"})).toMatchObject({status:"SUCCESSFUL",costKobo:"38058",providerTransactionId:"123"});
+ expect(gsubzStatusResult({code:"200",status:"success",description:"TRANSACTION_SUCCESSFUL",amount:"380.58461538462"})).toMatchObject({status:"SUCCESSFUL",costKobo:"38058"});
+});
+it("reconciles an observed supplier transaction ID without resending a purchase",async()=>{
+ vi.stubEnv("GSUBZ_API_KEY","fixture");const send=vi.fn().mockResolvedValue(new Response(JSON.stringify({code:"200",status:"success",description:"TRANSACTION_SUCCESSFUL",amount:"380.58461538462"})));vi.stubGlobal("fetch",send);
+ expect(await new GsubzProvider().checkStatus("original-reference","2461055065")).toMatchObject({status:"SUCCESSFUL",costKobo:"38058",providerTransactionId:"2461055065"});
+ expect(send.mock.calls[0][1].body.get("requestID")).toBe("2461055065");expect(send).toHaveBeenCalledTimes(1);
 });
