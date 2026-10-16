@@ -16,3 +16,5 @@ Confirm Netlify bundles both functions and the Linux Prisma engine. With live fl
 Free includes 300 monthly credits and a hard usage limit: exhaustion can pause service. Monitor usage, do not enable a paid plan or auto recharge. No always-on Render worker is required.
 
 Netlify import initially classified public configuration as secret. Netlify locks that label after creation. Secret scanning omits only HOTDATA_WORKER_MODE and PAYMENT_GATEWAY, whose values are public enum labels. Database/authentication/API credentials remain fully scanned. Do not disable secret scanning or add actual secrets to this exception.
+
+Worker authentication can also derive a domain-separated HMAC key from the existing AUTH_CODE_SECRET when HOTDATA_WORKER_SECRET is absent. The auth-code secret itself is never sent in a request. An explicitly configured but invalid worker secret fails closed. Connection preflight performs only Postgres SELECT/count and Redis PING; provider readiness uses only authenticated read calls.

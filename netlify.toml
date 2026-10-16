@@ -1,5 +1,5 @@
 [build]
-  command = "node scripts/prepare-netlify.mjs && npm run db:generate && npm run build"
+  command = "node scripts/prepare-netlify.mjs && npm run db:generate && node scripts/check-netlify-runtime.cjs && node scripts/check-live-readiness.cjs && npm run build"
   publish = ".next"
 [build.environment]
   NODE_VERSION = "22"

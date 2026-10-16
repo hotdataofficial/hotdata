@@ -30,3 +30,5 @@ describe("Netlify background authorization and wake-up", () => {
    log.mockRestore();
  });
 });
+
+it("derives a separate worker credential without transmitting the auth-code secret",async()=>{const auth="c".repeat(43),derivedEnv={...env,HOTDATA_WORKER_SECRET:undefined,AUTH_CODE_SECRET:auth};const send=vi.fn().mockResolvedValue(new Response(null,{status:202}));expect(netlifyWorkerConfigured(derivedEnv)).toBe(true);expect(await wakeNetlifyWorker(derivedEnv,send)).toBe(true);const header=send.mock.calls[0][1].headers.authorization;expect(header).toMatch(/^Bearer [a-f0-9]{64}$/);expect(header).not.toContain(auth);expect(workerAuthorized(new Request(env.APP_URL,{method:"POST",headers:{authorization:header}}),derivedEnv)).toBe(true);expect(workerAuthorized(new Request(env.APP_URL,{method:"POST",headers:{authorization:header}}),{...derivedEnv,AUTH_CODE_SECRET:"d".repeat(43)})).toBe(false);expect(netlifyWorkerConfigured({...derivedEnv,HOTDATA_WORKER_SECRET:"invalid"})).toBe(false);});
