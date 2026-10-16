@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../../src/server/jobs/funding-recovery",()=>({reconcilePendingFunding:vi.fn(),recoverableFundingWhere:vi.fn()}));
 const mocks=vi.hoisted(()=>({upsert:vi.fn(),updateMany:vi.fn(),update:vi.fn(),findMany:vi.fn(),claim:vi.fn(),process:vi.fn()}));
 vi.mock("../../src/server/db",()=>({db:{
  outboxEvent:{upsert:mocks.upsert,updateMany:mocks.updateMany,update:mocks.update},

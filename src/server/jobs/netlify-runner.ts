@@ -7,11 +7,12 @@ import { dispatchAgentCallbacks } from "../notifications/agent-callback-outbox";
 import { dispatchBroadcasts } from "../notifications/broadcast-outbox";
 import { dispatchReferralRewards } from "../services/referrals";
 import { checkProviderBalances } from "../providers/balance-alerts";
+import { reconcilePendingFunding, recoverableFundingWhere } from "./funding-recovery";
 const leaseKey = "netlify-worker:lease";
 const workKinds = ["VTU_PURCHASE", "EMAIL_FUNDING", "EMAIL_PURCHASE", "AGENT_CALLBACK", "ADMIN_BROADCAST", "REFERRAL_REWARD"];
 export async function hasNetlifyWork() {
   const now = new Date();
-  return !!(await db.outboxEvent.findFirst({ where: { kind: { in: workKinds }, deliveredAt: null, availableAt: { lte: now }, OR: [{kind:{notIn:["EMAIL_FUNDING","EMAIL_PURCHASE"]}},{attempts:{lt:10}}] }, select: { id: true } }) ||
+  return !!(await db.fundingTransaction.findFirst({ where: recoverableFundingWhere(), select: { id: true } }) || await db.outboxEvent.findFirst({ where: { kind: { in: workKinds }, deliveredAt: null, availableAt: { lte: now }, OR: [{kind:{notIn:["EMAIL_FUNDING","EMAIL_PURCHASE"]}},{attempts:{lt:10}}] }, select: { id: true } }) ||
     await db.transaction.findFirst({ where: { type: "DATA", status: "PENDING", updatedAt: { lte: new Date(Date.now() - 60000) }, OR: [{ processingUntil: null }, { processingUntil: { lte: now } }] }, select: { id: true } }));
 }
 export async function runNetlifyJobs() {
@@ -23,6 +24,7 @@ export async function runNetlifyJobs() {
   const deadline = Date.now() + 8 * 60000;
   const visited = new Set<string>();
   try {
+    await reconcilePendingFunding();
     for (let count = 0; count < 40 && Date.now() < deadline; count++) {
       const event = await db.$transaction(async tx => {
         // Static SQL only; no external strings or identifiers are interpolated.

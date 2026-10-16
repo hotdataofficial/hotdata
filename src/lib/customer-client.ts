@@ -1,7 +1,9 @@
 import { refreshSession } from "./auth-client";
+import { apiInput } from "./api-input";
 export class ApiError extends Error { constructor(message: string, public status: number) { super(message); } }
 export async function apiResponse(url: string, data?: unknown, method = "GET") {
   if (!url.startsWith("/api/")) throw new Error("Invalid API URL.");
+  ({ data, method } = apiInput(data, method));
   const send = async () => {
     const headers: Record<string, string> = {};
     if (method !== "GET") {

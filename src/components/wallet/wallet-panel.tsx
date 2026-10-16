@@ -20,7 +20,21 @@ export function WalletPanel() {
   const key = useRef<string | null>(null); const proofToken = useRef<string | null>(null);
   const operation = useRef<string | null>(null);
   const reload = async () => setSummary(await walletRequest("summary", undefined, "GET"));
-  useEffect(() => { void reload().catch(error => setMessage(error.message)); }, []);
+  useEffect(() => {
+    let active = true;
+    async function restorePayment() {
+      const reference = new URLSearchParams(window.location.search).getAll("reference").find(value => /^HD-F-[a-f0-9-]{36}$/i.test(value));
+      if (reference) {
+        try {
+          const result = await walletRequest("verify-funding", { reference });
+          if (active) setMessage(result.status === "SUCCESSFUL" ? "Payment confirmed. Your wallet is credited." : "Payment confirmation is pending. Use Check payment below to check again.");
+        } catch (error) { if (active) setMessage(error instanceof Error ? error.message : "Payment confirmation is pending. Check again shortly."); }
+      }
+      if (active) await reload();
+    }
+    void restorePayment().catch(error => { if (active) setMessage(error.message); });
+    return () => { active = false; };
+  }, []);
   async function action(name: string, handler: () => Promise<void>) {
     if (busy) return; setBusy(true); setMessage("");
     try { await handler(); if (name !== "checkout") await reload(); }
