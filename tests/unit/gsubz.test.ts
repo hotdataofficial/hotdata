@@ -1,6 +1,12 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { GsubzProvider, gsubzResult, gsubzStatusResult } from "../../src/server/providers/gsubz";
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();});
+it("preserves an explicit API-access rejection on HTTP 403 without spending again",async()=>{
+ vi.stubEnv("GSUBZ_API_KEY"," fixture ");vi.stubEnv("GSUBZ_ALLOW_LIVE","true");vi.stubEnv("KORAPAY_ALLOW_LIVE","true");
+ const send=vi.fn().mockResolvedValue(new Response(JSON.stringify({code:407,status:"failed",description:"Chat Admin to get upgraded before using our API, Thank you!"}),{status:403}));vi.stubGlobal("fetch",send);
+ expect(await new GsubzProvider().buyData({reference:"one-reference",phone:"08031234567",networkCode:"MTN",providerPlanCode:"mtn_sme:260"})).toEqual({status:"FAILED",code:"API_ACCESS_NOT_ENABLED"});
+ expect(send).toHaveBeenCalledTimes(1);expect(send.mock.calls[0][1].body.get("api")).toBe("fixture");
+});
 it("recognizes the documented verification response without weakening purchase validation",()=>{
  const response={code:"200",status:"success",description:"TRANSACTION_SUCCESSFUL",api_response:"private delivery details"};
  expect(gsubzStatusResult(response)).toEqual({status:"SUCCESSFUL",code:"GSUBZ_DELIVERED"});

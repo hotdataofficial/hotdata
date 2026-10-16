@@ -30,6 +30,9 @@ async function inspectDelivery(key){
  }
  const providerKey=process.env.GSUBZ_API_KEY;
  if(providerKey){
+  // Authentication/validation probe only: no service, plan, recipient or amount.
+  // The required purchase fields are deliberately absent, so this cannot deliver or charge an order.
+  try{const p=await request("https://api.gsubz.com/api/pay/",{method:"POST",headers:{Authorization:"Bearer "+providerKey,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({api:providerKey})});const d=p.body;console.log("HOTDATA_DATA_API_VALIDATION "+JSON.stringify({http:p.http,code:/^\d{3}$/.test(String(d.code))?String(d.code):"OTHER",status:typeof d.status==="string"&&/^[a-z_]{1,30}$/i.test(d.status)?d.status:"OTHER",description:/^[A-Z_]{1,80}$/.test(d.description||"")?d.description:"OTHER",apiUpgradeRequired:Number(d.code)===407||/get upgraded before using.*api/i.test(String(d.description||"")),noPurchaseFieldsSent:true}));}catch{console.log("HOTDATA_DATA_API_VALIDATION unavailable")}
   try{await inspectDelivery(providerKey)}catch{console.log("HOTDATA_PENDING_DELIVERY_CHECK unavailable")}
   try{
    const r=await request("https://api.gsubz.com/api/balance/",{method:"POST",headers:{Authorization:"Bearer "+providerKey,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({api:providerKey})});

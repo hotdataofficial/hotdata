@@ -85,9 +85,12 @@ export async function processPurchase(transactionId: string, factory: ProviderFa
     const release = { processingUntil: null, processingToken: null };
     if (result.status === "UNKNOWN") { await tx.transaction.update({ where: { id: transactionId }, data: release }); return; }
     if (result.status === "FAILED" && claimed.attempt) {
-      // Commit the definite failed attempt. The next queue pass may safely try
-      // another provider; an uncertain attempt never reaches this branch.
-      await tx.transaction.update({ where: { id: transactionId }, data: release }); return;
+      const tried = [...new Set([...claimed.order.attempts.map(a => a.providerId), claimed.attempt.providerId])];
+      const alternatives = current.planId ? await tx.providerPlanMap.findMany({ where: { planId: current.planId, active: true, providerId: { notIn: tried }, provider: { active: true, deletedAt: null } }, select: { provider: { select: { adapter: true } } } }) : [];
+      // Only a confirmed failure can reach fallback/refund; UNKNOWN remains pending.
+      if (alternatives.some(mapping => ready(mapping.provider.adapter))) {
+        await tx.transaction.update({ where: { id: transactionId }, data: release }); return;
+      }
     }
     if (result.status === "FAILED") {
       await moveMoney(tx, current.userId, current.amountKobo, "REFUND", current.reference + "-REFUND", "Data purchase refund", { transactionId });

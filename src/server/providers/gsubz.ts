@@ -7,12 +7,13 @@ export function gsubzPurchasesEnabled() { return process.env.GSUBZ_ALLOW_LIVE ==
 export function gsubzResult(value: unknown): ProviderResult {
   if (!value || typeof value !== "object") return {status:"UNKNOWN",code:"INVALID_RESPONSE"};
   const data = value as Record<string, unknown>;
+  if (Number(data.code) === 407) return { status: "FAILED", code: "API_ACCESS_NOT_ENABLED" };
   if (data.status === "successful" && [200,406].includes(Number(data.code)) && data.transactionID) {
     try { const costKobo = data.amountPaid === undefined ? undefined : parseNaira(String(data.amountPaid)).toString(); return {status:"SUCCESSFUL",code:"GSUBZ_DELIVERED",...(costKobo ? {costKobo} : {})}; }
     catch { return {status:"UNKNOWN",code:"INVALID_PROVIDER_COST"}; }
   }
   // Gateway errors, missing records and duplicate outcomes require reconciliation.
-  if (data.status === "failed" && ["REQUIRED_CONTENT_NOT_SENT","INVALID_CONTENT","INVALID_PLAN","INVALID_API_OR_NOT_FOUND","INSUFFICIENT_BALANCE","REQUEST_METHOD_NOT_IN_POST","SERVICE_DISABLED"].includes(String(data.description))) return {status:"FAILED",code:String(data.description)};
+  if (data.status === "failed" && ["REQUIRED_CONTENT_NOT_SENT","INVALID_CONTENT","INVALID_PLAN","INVALID_API_OR_NOT_FOUND","INSUFFICIENT_BALANCE","REQUEST_METHOD_NOT_IN_POST","SERVICE_DISABLED","ACCOUNT_BLOCKED"].includes(String(data.description))) return {status:"FAILED",code:String(data.description)};
   return {status:"UNKNOWN",code:"GSUBZ_UNCERTAIN"};
 }
 export function gsubzStatusResult(value: unknown): ProviderResult {
@@ -26,11 +27,13 @@ export function gsubzStatusResult(value: unknown): ProviderResult {
 export class GsubzProvider implements VtuProvider {
   constructor(baseUrl = origin) { if (baseUrl.replace(/\/$/, "") !== origin) throw new HttpError(400,"Gsubz must use its official API URL."); }
   private async post(path: string, fields: Record<string,string>) {
-    const key = process.env.GSUBZ_API_KEY;
+    const key = process.env.GSUBZ_API_KEY?.trim();
     if (!key) throw new HttpError(503,"Gsubz credentials are not configured.");
     const response = await fetch(origin+path,{method:"POST",headers:{Authorization:"Bearer "+key,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({...fields,api:key}),redirect:"error",signal:AbortSignal.timeout(60000)});
-    if (!response.ok) throw new HttpError(502,"Gsubz response requires reconciliation.");
-    return await response.json() as Record<string,unknown>;
+    const result = await response.json() as Record<string,unknown>;
+    // Preserve explicit, uncharged API rejections even when the HTTP status is not 2xx.
+    if (!response.ok && !(path === "/api/pay/" && gsubzResult(result).status === "FAILED")) throw new HttpError(502,"Gsubz response requires reconciliation.");
+    return result;
   }
   async buyData(order: DataOrder): Promise<ProviderResult> {
     if (!gsubzPurchasesEnabled()) throw new HttpError(503,"Real Gsubz purchases are disabled while payments are in test mode.");

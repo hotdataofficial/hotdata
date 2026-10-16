@@ -1,0 +1,14 @@
+import { beforeEach, expect, it, vi } from "vitest";
+const m=vi.hoisted(()=>({transaction:vi.fn(),read:vi.fn(),update:vi.fn(),attempt:vi.fn(),alternatives:vi.fn(),money:vi.fn(),final:vi.fn(),notify:vi.fn(),outbox:vi.fn()}));
+vi.mock("../../src/server/db",()=>({db:{$transaction:m.transaction}}));
+vi.mock("../../src/server/services/wallet",()=>({moveMoney:m.money}));
+vi.mock("../../src/server/services/referrals",()=>({purchaseFinalEvents:m.final}));
+import {processPurchase} from "../../src/server/services/purchases";
+const provider={id:"supplier",adapter:"fake",priority:1},attempt={id:"attempt",providerId:"supplier",provider,reference:"original",status:"PENDING",providerPlanCode:"plan",networkCode:"MTN"};
+const order={id:"order",userId:"user",type:"DATA",status:"PENDING",processingUntil:null,processingToken:null,planId:"plan",amountKobo:42000n,costKobo:38000n,profitKobo:4000n,reference:"HD-D-test",phone:"08031234567",attempts:[attempt],plan:{network:{code:"MTN"},mappings:[]}};
+let finalized=false;
+beforeEach(()=>{vi.resetAllMocks();finalized=false;m.alternatives.mockResolvedValue([]);m.read.mockImplementation(async()=>({...order,status:finalized?"FAILED":"PENDING",processingToken:m.update.mock.calls[0]?.[0]?.data?.processingToken}));m.update.mockImplementation(async(input)=>{if(input.data.status==="FAILED")finalized=true;return input.data});m.transaction.mockImplementation(async fn=>fn({$queryRaw:async()=>[],transaction:{findUnique:m.read,findUniqueOrThrow:m.read,update:m.update},providerAttempt:{update:m.attempt},providerPlanMap:{findMany:m.alternatives},notification:{create:m.notify},user:{findUniqueOrThrow:async()=>({email:"fixture@example.com"})},outboxEvent:{create:m.outbox}}));});
+function adapter(status:"FAILED"|"UNKNOWN"){return ()=>({buyData:vi.fn(),checkStatus:async()=>({status,code:"CHECKED"}),buyAirtime:vi.fn(),getBalance:vi.fn(),getPlans:vi.fn()});}
+it("refunds an exhausted confirmed failure in the same invocation and does not refund twice",async()=>{await processPurchase("order",adapter("FAILED"),()=>true);expect(m.money).toHaveBeenCalledTimes(1);expect(m.money.mock.calls[0].slice(1,6)).toEqual(["user",42000n,"REFUND","HD-D-test-REFUND","Data purchase refund"]);expect(finalized).toBe(true);await processPurchase("order",adapter("FAILED"),()=>true);expect(m.money).toHaveBeenCalledTimes(1);});
+it("retains unknown outcomes without refund or fallback",async()=>{await processPurchase("order",adapter("UNKNOWN"),()=>true);expect(m.money).not.toHaveBeenCalled();expect(m.alternatives).not.toHaveBeenCalled();expect(finalized).toBe(false);});
+it("leaves confirmed failure eligible for an untried active delivery route",async()=>{m.alternatives.mockResolvedValue([{provider:{adapter:"fake"}}]);await processPurchase("order",adapter("FAILED"),()=>true);expect(m.money).not.toHaveBeenCalled();expect(finalized).toBe(false);});
