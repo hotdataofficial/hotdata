@@ -8,7 +8,10 @@ export async function reconcilePendingFunding() {
   let confirmed = 0;
   for (const row of rows) {
     try { const result = await verifyOwnFunding(row.userId, row.reference); if (result.status === "SUCCESSFUL") confirmed++; }
-    catch { console.warn("Funding confirmation will retry; no unverified wallet credit was applied."); }
+    catch (error) {
+      const detail = error as { name?: string; code?: string; status?: number; message?: string };
+      console.warn("Funding confirmation will retry; no unverified wallet credit was applied.", JSON.stringify({ type: detail.name, code: /^[A-Z0-9_]{1,20}$/.test(detail.code || "") ? detail.code : undefined, status: detail.status, unsupportedVoid: /void|deserialize/i.test(detail.message || "") }));
+    }
   }
   console.info("HOTDATA_FUNDING_RECOVERY", JSON.stringify({ checked: rows.length, confirmed }));
 }

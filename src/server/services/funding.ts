@@ -58,7 +58,7 @@ export async function settleVerifiedPayment(payment: VerifiedPayment, gatewayNam
   if (payment.status !== "success") return { status: "PENDING", credited: false };
   if (payment.currency !== "NGN" || payment.amountKobo <= 0n) throw new HttpError(409, "Unsupported payment currency or amount.");
   return db.$transaction(async tx => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${gatewayName + ":" + payment.reference}, 0))`;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${gatewayName + ":" + payment.reference}, 0))::text`;
     let row = await tx.fundingTransaction.findFirst({ where: { OR: [{ gateway: gatewayName, gatewayReference: payment.reference }, { gateway: gatewayName, reference: payment.reference }] } });
     if (!row) {
       if (payment.channel !== "dedicated_nuban") throw new HttpError(409, "Unknown funding reference.");

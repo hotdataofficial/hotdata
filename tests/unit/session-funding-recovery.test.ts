@@ -8,7 +8,7 @@ import { reconcilePendingFunding, recoverableFundingWhere } from "../../src/serv
 describe("session and funding recovery", () => {
   it("preserves wallet callback queries but refuses external and looping destinations", () => {
     expect(sessionReturn("/wallet?reference=HD-F-test")).toBe("/wallet?reference=HD-F-test");
-    for (const path of ["https://evil.test", "//evil.test", "/\\evil.test", "/session-refresh?next=/wallet", "/api/auth/refresh", null]) expect(sessionReturn(path)).toBe("/dashboard");
+    for (const path of ["https://evil.test", "//evil.test", "/\\evil.test", "/\t/evil.test", "/session-refresh?next=/wallet", "/api/auth/refresh", null]) expect(sessionReturn(path)).toBe("/dashboard");
   });
   it("sends fetch-style mutations as mutations instead of silently issuing GET", () => {
     expect(apiInput({ method: "POST", body: '{"active":true}' }, "GET")).toEqual({ method: "POST", data: { active: true } });
