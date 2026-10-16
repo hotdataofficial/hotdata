@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { config } from "../config";
 import { incident } from "../observability";
 import { randomToken, safeEqual } from "./crypto";
+import { publicServiceError } from "@/lib/service-branding";
 export class HttpError extends Error { constructor(public status: number, message: string) { super(message); } }
 export function clientIp(req: NextRequest) {
   // Enable only when the reverse proxy overwrites this header and blocks direct access.
@@ -56,7 +57,7 @@ export function endpoint(handler: (req: NextRequest) => Promise<NextResponse>) {
       return await handler(req);
     }
     catch (error) {
-      if (error instanceof HttpError) return json({ error: error.message }, error.status);
+      if (error instanceof HttpError) return json({ error: req.nextUrl.pathname.startsWith("/api/admin/") ? error.message : publicServiceError(error.message) }, error.status);
       if (error instanceof z.ZodError) return json({ error: "Check your details.", fields: error.flatten().fieldErrors }, 400);
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return json({ error: "Those details or reference are already in use." }, 409);
       // Do not log request bodies, tokens, credentials or error messages containing SQL.
