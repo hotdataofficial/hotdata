@@ -12,7 +12,7 @@ export function PriceList({ compact = false }: { compact?: boolean }) {
     const current = ++request.current; setLoading(true); setError("");
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000);
     try {
-      const response = await fetch("/api/public/plans", { cache: "no-store", credentials: "omit", signal: controller.signal });
+      const response = await fetch("/api/public/plans", { cache: "no-store", credentials: "same-origin", signal: controller.signal });
       if (!response.ok) throw Error(response.status === 429 ? "Prices are busy. Please retry in a minute." : "We couldn’t load current prices. Please try again.");
       const next = catalogSchema.parse(await response.json());
       if (current === request.current) { setCatalog(next); setNetwork(previous => next.networks.some(n => n.id === previous) ? previous : next.networks.find(n => n.code === "MTN")?.id || next.networks[0]?.id || ""); }
