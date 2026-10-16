@@ -1,0 +1,36 @@
+{
+  "target": "Vercel web + managed PostgreSQL/TLS Redis + persistent worker",
+  "repository": {
+    "selection": "User will provide another repository",
+    "uploaded": false,
+    "existingOffhotspotUntouched": true
+  },
+  "vercel": {
+    "integrationInstalled": false,
+    "connectionConfirmed": false,
+    "deployed": false
+  },
+  "verification": {
+    "unitPassed": 94,
+    "unitFailed": 0,
+    "databaseTestsSkipped": 26,
+    "stagingSetupTestsPassed": 9,
+    "typecheckPassed": true,
+    "productionBuildPassed": true,
+    "migrationHelperSyntaxPassed": true,
+    "missingMigrationConfigRejected": true,
+    "sqlMigrationsExecuted": false,
+    "workerImageBuilt": false,
+    "hostedChecksExecuted": false
+  },
+  "proofStorage": {
+    "vercelLocalUploadsDisabled": true,
+    "vercelLocalReadsDisabled": true,
+    "manualBankInstructionsHidden": true,
+    "privateObjectStorageImplemented": false
+  },
+  "previousBrowserTests": {
+    "passed": 3,
+    "rerunThisRelease": false
+  }
+}

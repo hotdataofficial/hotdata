@@ -1,0 +1,6 @@
+import { lagosDay } from "./history-dates";
+export function reportRange(from: string, to: string) { const start = lagosDay(from), end = new Date(lagosDay(to).getTime() + 86400000); if (end <= start || end.getTime() - start.getTime() > 366 * 86400000) throw new Error("Use an ordered range of at most 366 days."); return { start, end }; }
+export function adminMayChange(actorRole: string, actorId: string, target: { id: string; role: string }, nextRole: string, nextStatus: string) { if (actorId === target.id && (nextRole !== target.role || nextStatus !== "ACTIVE")) return false; if (actorRole !== "SUPER_ADMIN" && (["ADMIN", "SUPER_ADMIN"].includes(target.role) || ["ADMIN", "SUPER_ADMIN"].includes(nextRole))) return false; return ["ADMIN", "SUPER_ADMIN"].includes(actorRole); }
+export function refundableEvidence(attempts: { status: string }[]) { return attempts.length > 0 && attempts.every(a => a.status === "FAILED"); }
+export function safeCsvCell(value: unknown) { let text = String(value ?? ""); if (/^[=+@-]/.test(text) || /^[\t\r\n]/.test(text)) text = "'" + text; return '"' + text.replace(/"/g, '""') + '"'; }
+export function jsonSafe(value: unknown): unknown { return JSON.parse(JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v)); }

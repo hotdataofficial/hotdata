@@ -1,0 +1,3 @@
+import type { MetadataRoute } from "next";
+import { publicSite } from "@/lib/public-site";
+export default function robots(): MetadataRoute.Robots { const site = publicSite(); return { rules: site.indexable ? { userAgent: "*", allow: ["/", "/pricing", "/contact", "/terms", "/privacy", "/refunds", "/api-docs"], disallow: ["/api/", "/admin/", "/dashboard", "/wallet", "/buy-data", "/history", "/receipts/", "/beneficiaries", "/notifications", "/profile", "/security", "/support", "/agent", "/referrals", "/login", "/register", "/forgot-password", "/reset-password", "/verify-email"] } : { userAgent: "*", disallow: "/" }, ...(site.indexable ? { sitemap: site.origin + "/sitemap.xml" } : {}) }; }

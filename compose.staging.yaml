@@ -1,0 +1,73 @@
+name: hotdata-staging
+x-runtime: &runtime
+  env_file: .env.staging
+  environment:
+    NODE_ENV: production
+    STAGING: "true"
+    PUBLIC_SITE_LIVE: "false"
+    PUBLIC_INDEXABLE: "false"
+    LEGAL_PUBLISHED: "false"
+    RUN_DB_TESTS: "false"
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+services:
+  app:
+    <<: *runtime
+    build: { context: ., target: runner }
+    ports: ["127.0.0.1:3200:3000"]
+    volumes: ["staging_proofs:/app/private-uploads"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health?ready=1').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
+    restart: unless-stopped
+  worker:
+    <<: *runtime
+    build: { context: ., target: worker }
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    stop_grace_period: 2m
+    restart: unless-stopped
+  migrate:
+    <<: *runtime
+    build: { context: ., target: worker }
+    profiles: [tools]
+    command: ["npm", "run", "db:migrate"]
+    depends_on:
+      postgres: { condition: service_healthy }
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hotdata
+      POSTGRES_DB: hotdata_staging
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Use the generated .env.staging}
+    volumes: ["staging_postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotdata -d hotdata_staging"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Use the generated .env.staging}
+    command: ["sh", "-c", 'exec redis-server --appendonly yes --maxmemory-policy noeviction --requirepass "$$REDIS_PASSWORD"']
+    volumes: ["staging_redis:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+volumes:
+  staging_postgres:
+  staging_redis:
+  staging_proofs:

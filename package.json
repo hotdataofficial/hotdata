@@ -1,0 +1,67 @@
+{
+  "name": "hotdata",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "test": "vitest run --configLoader native",
+    "test:integration": "vitest run --configLoader native tests/integration",
+    "preview": "node scripts/preview.mjs",
+    "notifications:dispatch": "tsx scripts/dispatch-funding-emails.ts",
+    "worker": "tsx scripts/worker.ts",
+    "test:e2e": "playwright test",
+    "check:runtime": "node scripts/check-runtime.mjs",
+    "icons:generate": "node scripts/generate-icons.mjs",
+    "staging:init": "node scripts/init-staging.mjs",
+    "staging:check": "node scripts/check-staging.mjs",
+    "test:staging": "node --test tests/staging.test.mjs",
+    "staging:smoke": "node scripts/staging-smoke.mjs",
+    "db:migrate:managed": "node scripts/migrate-managed.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.0",
+    "@radix-ui/react-slot": "^1.2.3",
+    "argon2": "^0.44.0",
+    "bullmq": "^5.61.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.2.0",
+    "ioredis": "^5.8.0",
+    "jose": "^6.1.0",
+    "next": "^16.0.0",
+    "nodemailer": "^7.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "resend": "^6.0.0",
+    "server-only": "^0.0.1",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^22.0.0",
+    "@types/nodemailer": "^7.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "autoprefixer": "^10.4.20",
+    "node": "22.20.0",
+    "postcss": "^8.5.0",
+    "prisma": "6.19.0",
+    "tailwindcss": "3.4.17",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

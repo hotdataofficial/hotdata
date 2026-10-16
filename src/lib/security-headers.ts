@@ -1,0 +1,4 @@
+export function securityHeaders(production: boolean) {
+ const policy = ["default-src 'self'", "base-uri 'self'", "object-src 'none'", "frame-ancestors 'none'", "form-action 'self'", "script-src 'self' 'unsafe-inline'" + (production ? "" : " 'unsafe-eval'"), "style-src 'self' 'unsafe-inline'", "img-src 'self' data: https:", "font-src 'self'", "connect-src 'self'" + (production ? "" : " ws: wss:"), "worker-src 'self'", "manifest-src 'self'", ...(production ? ["upgrade-insecure-requests"] : [])].join("; ");
+ return [{key:"Content-Security-Policy",value:policy},{key:"X-Content-Type-Options",value:"nosniff"},{key:"Referrer-Policy",value:"strict-origin-when-cross-origin"},{key:"X-Frame-Options",value:"DENY"},{key:"Permissions-Policy",value:"camera=(), microphone=(), geolocation=(), payment=()"},...(production?[{key:"Strict-Transport-Security",value:"max-age=31536000"}]:[])];
+}

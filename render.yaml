@@ -1,0 +1,37 @@
+# Prepared deployment; no paid worker has been created.
+# Review Render's current compute price before deploying this blueprint.
+services:
+  - type: worker
+    name: hotdata-worker
+    runtime: docker
+    plan: 0.5c-512mb
+    dockerfilePath: ./Dockerfile.worker
+    dockerContext: .
+    numInstances: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_URL
+        value: https://hotdata-vercel-drop.vercel.app
+      - key: PAYMENT_GATEWAY
+        value: korapay
+      - key: KORAPAY_ALLOW_LIVE
+        value: "false"
+      - key: GSUBZ_ALLOW_LIVE
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: GSUBZ_API_KEY
+        sync: false
+      - key: PROVIDER_ENCRYPTION_KEY
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: AUTH_CODE_SECRET
+        sync: false
+      - key: IP_HASH_SECRET
+        sync: false

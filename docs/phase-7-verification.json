@@ -1,0 +1,65 @@
+{
+  "phase": 7,
+  "prismaClient": {
+    "generated": true,
+    "version": "6.19.0"
+  },
+  "prismaSchema": {
+    "validated": true
+  },
+  "sqlMigration": {
+    "executed": false,
+    "file": "202610110007_phase7/migration.sql"
+  },
+  "typecheck": {
+    "passed": true,
+    "scope": "Full application tsc --noEmit"
+  },
+  "vitest": {
+    "passed": 87,
+    "skipped": 26,
+    "failed": 0,
+    "passedFiles": 8,
+    "skippedFiles": 5,
+    "version": "3.2.7",
+    "configLoader": "native",
+    "originalBundleLoader": "esbuild ancestor-directory access error; resolved with native .mjs config"
+  },
+  "isolatedActualSourceChecks": {
+    "passed": 53,
+    "total": 53
+  },
+  "productionBuild": {
+    "passed": false,
+    "status": "timed out after 90 seconds during webpack optimisation",
+    "nextVersion": "16.4.0"
+  },
+  "databaseIntegration": {
+    "executed": false,
+    "reason": "PostgreSQL/Redis unavailable; RUN_DB_TESTS not enabled"
+  },
+  "browserPreview": {
+    "url": "http://127.0.0.1:3100/agent-demo",
+    "desktopScreenshot": "hotdata-phase-7-preview.png",
+    "mobileScreenshot": "hotdata-phase-7-mobile.png",
+    "threeRowsQuoted": "85500 sample kobo",
+    "invalidPhoneRejected": true,
+    "simulatedStatusesVerified": true,
+    "mobileHorizontalOverflow": false,
+    "measuredWidths": {
+      "overview": 480,
+      "docs": 450
+    },
+    "sampleDataOnly": true
+  },
+  "externalCallbacks": {
+    "sent": 0
+  },
+  "providers": {
+    "liveAdaptersEnabled": false
+  },
+  "scope": {
+    "phase8": false,
+    "deployed": false
+  }
+}

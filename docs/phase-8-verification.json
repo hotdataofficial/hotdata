@@ -1,0 +1,96 @@
+{
+  "phase": 8,
+  "productionBuild": {
+    "passed": true,
+    "compiler": "Next.js 16.4.0 webpack",
+    "standalone": true
+  },
+  "typecheck": {
+    "passed": true
+  },
+  "vitest": {
+    "passed": 92,
+    "skipped": 26,
+    "failed": 0
+  },
+  "playwright": {
+    "passed": 3,
+    "failed": 0,
+    "engine": "Installed Microsoft Edge",
+    "profile": "Pixel 7",
+    "scope": "signed-out protection; registration input/consent guard; actual offline navigation/cache boundary",
+    "financialSandboxFlows": false,
+    "firstAttempt": "browser discovery failed; resolved with explicit installed executable path"
+  },
+  "productionSmoke": [
+    {
+      "route": "/health",
+      "status": 200,
+      "cache": "no-store",
+      "csp": true,
+      "text": "{\"status\":\"ok\"}"
+    },
+    {
+      "route": "/health?ready=1",
+      "status": 503,
+      "cache": "no-store",
+      "csp": true,
+      "text": "{\"status\":\"unavailable\"}"
+    },
+    {
+      "route": "/manifest.webmanifest",
+      "status": 200,
+      "cache": "public, max-age=0, must-revalidate",
+      "csp": true,
+      "text": "{\"id\":\"/\",\"name\":\"Hotdata\",\"short_name\":\"Hotdata\",\"description\":\"Cheap data. Instant delivery.\",\"start_url\":\"/dashboard\",\"scope\":\"/\",\"display\":\"standalone\",\"background_color\":\"#F0F"
+    },
+    {
+      "route": "/sw.js",
+      "status": 200,
+      "cache": "no-cache, no-store, must-revalidate",
+      "csp": true,
+      "text": "/* Cache only this allowlist. Never cache accounts, API responses or Next RSC data. */\nconst CACHE = \"hotdata-offline-v1\";\nconst ASSETS = [\"/offline.html\", \"/icons/icon-192.png\", \""
+    },
+    {
+      "route": "/offline.html",
+      "status": 200,
+      "cache": "public, max-age=0",
+      "csp": true,
+      "text": "<!doctype html>\n<html lang=\"en-NG\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"theme-color\" content=\"#15803D\"><meta n"
+    },
+    {
+      "route": "/api/agent/keys",
+      "status": 401,
+      "cache": "no-store",
+      "csp": true,
+      "text": "{\"error\":\"Please sign in.\"}"
+    }
+  ],
+  "runtimePreflight": {
+    "validSyntheticAccepted": true,
+    "missingRejected": true
+  },
+  "preview": {
+    "url": "http://127.0.0.1:3100/launch-demo",
+    "sampleDataOnly": true,
+    "narrowWidth": 480,
+    "narrowHorizontalOverflow": false
+  },
+  "notExecuted": [
+    "PostgreSQL/Redis integration and SQL migrations",
+    "GitHub Actions on Linux",
+    "Docker/nginx runtime",
+    "Real Android/iOS installation and slow-3G profiling",
+    "Gateway/provider sandbox and signed callback delivery",
+    "Backup restoration"
+  ],
+  "deploy": {
+    "performed": false,
+    "providersActivated": false,
+    "manualFundingVercel": "Private object-storage adapter required"
+  },
+  "security": {
+    "csp": "Baseline; inline hydration/styles allowed, production eval prohibited",
+    "sentry": "Safe JSON collector integration documented; SDK not enabled"
+  }
+}

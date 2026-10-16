@@ -1,0 +1,431 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+enum Role {
+  CUSTOMER
+  AGENT
+  ADMIN
+  SUPER_ADMIN
+}
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+}
+enum TransactionStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+}
+enum TransactionType {
+  DATA
+  AIRTIME
+  TRANSFER
+  WITHDRAWAL
+  AGENT_UPGRADE
+}
+enum LedgerType {
+  FUNDING
+  PURCHASE
+  REFUND
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADMIN_CREDIT
+  ADMIN_DEBIT
+  REFERRAL
+  FEE
+}
+enum PlanType {
+  SME
+  GIFTING
+  CORPORATE_GIFTING
+  DIRECT
+}
+enum OtpPurpose {
+  EMAIL_VERIFICATION
+  PHONE_VERIFICATION
+  PASSWORD_RESET
+}
+enum FundingStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  REJECTED
+}
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+model User {
+  id String @id @default(cuid())
+  fullName String
+  email String @unique
+  phone String @unique
+  passwordHash String
+  role Role @default(CUSTOMER)
+  status AccountStatus @default(ACTIVE)
+  emailVerifiedAt DateTime?
+  phoneVerifiedAt DateTime?
+  consentAt DateTime
+  consentVersion String
+  pinHash String?
+  pinFailedAttempts Int @default(0)
+  pinLockedUntil DateTime?
+  loginFailedAttempts Int @default(0)
+  loginLockedUntil DateTime?
+  authVersion Int @default(0)
+  referralCode String @unique
+  referredById String?
+  referredBy User? @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals User[] @relation("Referrals")
+  virtualAccountConsentAt DateTime?
+  deletionRequestedAt DateTime?
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  wallet Wallet?
+  transactions Transaction[]
+  fundingTransactions FundingTransaction[]
+  virtualAccounts VirtualAccount[]
+  beneficiaries Beneficiary[]
+  referralEarnings ReferralEarning[] @relation("ReferrerEarnings")
+  triggeredEarnings ReferralEarning[] @relation("RefereeEarnings")
+  referralClicks ReferralClick[]
+  bulkBatches BulkBatch[]
+  apiKeys ApiKey[]
+  notifications Notification[]
+  supportTickets SupportTicket[]
+  auditLogs AuditLog[]
+  sessions Session[]
+  otpCodes OtpCode[]
+  @@index([status, createdAt])
+  @@index([referredById])
+}
+model Wallet {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  currency String @default("NGN")
+  balanceKobo BigInt @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  entries LedgerEntry[]
+}
+model LedgerEntry {
+  id String @id @default(cuid())
+  walletId String
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  type LedgerType
+  amountKobo BigInt
+  balanceBeforeKobo BigInt
+  balanceAfterKobo BigInt
+  reference String @unique
+  description String
+  transactionId String?
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  fundingTransactionId String?
+  fundingTransaction FundingTransaction? @relation(fields: [fundingTransactionId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  @@index([walletId, createdAt])
+}
+model Transaction {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  reference String @unique
+  idempotencyKey String
+  requestHash String
+  type TransactionType
+  status TransactionStatus @default(PENDING)
+  phone String
+  planId String?
+  plan Plan? @relation(fields: [planId], references: [id], onDelete: Restrict)
+  amountKobo BigInt
+  costKobo BigInt
+  profitKobo BigInt
+  apiKeyId String?
+  apiKey ApiKey? @relation(fields: [apiKeyId], references: [id], onDelete: Restrict)
+  bulkBatchId String?
+  bulkBatch BulkBatch? @relation(fields: [bulkBatchId], references: [id], onDelete: Restrict)
+  bulkRow Int?
+  planSnapshot Json?
+  processingUntil DateTime?
+  processingToken String?
+  failureReason String?
+  completedAt DateTime?
+  refundedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  entries LedgerEntry[]
+  attempts ProviderAttempt[]
+  @@unique([userId, idempotencyKey])
+  @@unique([bulkBatchId, bulkRow])
+  @@index([apiKeyId, createdAt])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([phone])
+}
+model Network {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  active Boolean @default(true)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  plans Plan[]
+}
+model Plan {
+  id String @id @default(cuid())
+  networkId String
+  network Network @relation(fields: [networkId], references: [id], onDelete: Restrict)
+  code String @unique
+  name String
+  type PlanType
+  sizeMb Int
+  validityDays Int
+  costKobo BigInt
+  customerPriceKobo BigInt
+  agentPriceKobo BigInt
+  active Boolean @default(true)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  mappings ProviderPlanMap[]
+  transactions Transaction[]
+  @@index([networkId, active])
+}
+model Provider {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  adapter String
+  baseUrl String
+  credentialsEncrypted String?
+  priority Int @default(100)
+  active Boolean @default(false)
+  lowBalanceThresholdKobo BigInt @default(0)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  mappings ProviderPlanMap[]
+  attempts ProviderAttempt[]
+}
+model ProviderPlanMap {
+  id String @id @default(cuid())
+  planId String
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  providerId String
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  providerPlanCode String
+  active Boolean @default(true)
+  @@unique([planId, providerId])
+}
+model ProviderAttempt {
+  id String @id @default(cuid())
+  transactionId String
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  providerId String
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  reference String @unique
+  status TransactionStatus @default(PENDING)
+  providerPlanCode String
+  networkCode String
+  requestRedacted Json?
+  responseRedacted Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([transactionId])
+  @@index([status, createdAt])
+}
+model FundingTransaction {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  reference String @unique
+  gateway String
+  gatewayReference String?
+  idempotencyKey String?
+  requestHash String?
+  checkoutUrl String?
+  payerEmail String?
+  reviewRequired Boolean @default(false)
+  amountKobo BigInt
+  feeKobo BigInt @default(0)
+  status FundingStatus @default(PENDING)
+  proofObjectKey String? @unique
+  reviewedById String?
+  reviewReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  entries LedgerEntry[]
+  @@unique([gateway, gatewayReference])
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+model VirtualAccount {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  gateway String
+  gatewayAccountId String
+  gatewayCustomerCode String
+  providerSlug String
+  accountNumber String
+  accountName String
+  bankName String
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  @@unique([gateway, gatewayAccountId])
+  @@unique([gateway, gatewayCustomerCode])
+  @@unique([gateway, accountNumber])
+  @@unique([userId, gateway])
+  @@index([userId])
+}
+model Beneficiary {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name String
+  phone String
+  networkCode String?
+  createdAt DateTime @default(now())
+  @@unique([userId, phone])
+}
+model ReferralEarning {
+  id String @id @default(cuid())
+  referrerId String
+  referrer User @relation("ReferrerEarnings", fields: [referrerId], references: [id], onDelete: Restrict)
+  refereeId String
+  referee User @relation("RefereeEarnings", fields: [refereeId], references: [id], onDelete: Restrict)
+  trigger String
+  amountKobo BigInt
+  reference String @unique
+  createdAt DateTime @default(now())
+  @@unique([refereeId, trigger])
+  @@unique([refereeId])
+  @@index([referrerId, createdAt])
+}
+model ApiKey {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  name String
+  keyHash String @unique
+  prefix String
+  ipWhitelist String[]
+  callbackUrl String?
+  callbackSecretEncrypted String?
+  transactions Transaction[]
+  revokedAt DateTime?
+  lastUsedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId])
+}
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title String
+  body String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
+model SupportTicket {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  reference String @unique
+  subject String
+  body String
+  status TicketStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, createdAt])
+  @@index([userId])
+}
+model AuditLog {
+  id String @id @default(cuid())
+  actorId String?
+  actor User? @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action String
+  entityType String
+  entityId String?
+  metadata Json?
+  createdAt DateTime @default(now())
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+}
+model Setting {
+  key String @id
+  value Json
+  updatedAt DateTime @updatedAt
+}
+model Session {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshHash String @unique
+  authVersion Int
+  userAgent String
+  ipHash String
+  expiresAt DateTime
+  lastUsedAt DateTime @default(now())
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+model OtpCode {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose OtpPurpose
+  codeHash String
+  attempts Int @default(0)
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, purpose, createdAt])
+  @@index([expiresAt])
+}
+model OutboxEvent {
+  id String @id @default(cuid())
+  kind String
+  payload Json
+  dedupeKey String @unique
+  availableAt DateTime @default(now())
+  deliveredAt DateTime?
+  attempts Int @default(0)
+  createdAt DateTime @default(now())
+  @@index([deliveredAt, availableAt])
+}
+
+model BulkBatch {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  idempotencyKey String
+  requestHash String
+  totalKobo BigInt
+  rowCount Int
+  createdAt DateTime @default(now())
+  transactions Transaction[]
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+}
+model ReferralClick {
+  id String @id @default(cuid())
+  referrerId String
+  referrer User @relation(fields: [referrerId], references: [id], onDelete: Cascade)
+  visitorHash String
+  createdAt DateTime @default(now())
+  @@unique([referrerId, visitorHash])
+  @@index([referrerId, createdAt])
+}

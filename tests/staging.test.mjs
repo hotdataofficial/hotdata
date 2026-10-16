@@ -1,0 +1,16 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { parse } from "dotenv";
+import { createStagingEnv,stagingOrigin,validateStaging } from "../scripts/staging-config.mjs";
+const template=readFileSync(new URL("../.env.example",import.meta.url),"utf8");
+const sample=()=>parse(createStagingEnv(template,"https://staging.hotdata.example"));
+test("rejects unsafe origins without disclosing supplied credentials",()=>{for(const input of ["http://staging.example","https://name:password@staging.example","https://staging.example/path","https://staging.example?q=key","https://staging.example#secret","https://staging.example:444"]){assert.throws(()=>stagingOrigin(input));}assert.equal(stagingOrigin("https://staging.hotdata.example/"),"https://staging.hotdata.example");});
+test("generates independent auth secrets and a canonical AES key",()=>{const env=sample();const auth=["JWT_ACCESS_SECRET","JWT_REFRESH_SECRET","AUTH_CODE_SECRET","IP_HASH_SECRET"].map(name=>env[name]);assert.equal(new Set(auth).size,4);for(const value of auth)assert.equal(Buffer.from(value,"base64url").length,36);assert.equal(Buffer.from(env.PROVIDER_ENCRYPTION_KEY,"base64").length,32);});
+test("accepts the isolated generated staging configuration",()=>{assert.deepEqual(validateStaging(sample()),[]);});
+test("fresh environments never reuse passwords or encryption secrets",()=>{const first=sample(),second=sample();for(const name of ["POSTGRES_PASSWORD","REDIS_PASSWORD","JWT_ACCESS_SECRET","PROVIDER_ENCRYPTION_KEY"])assert.notEqual(first[name],second[name]);});
+test("rejects public launch, indexing and published legal flags",()=>{for(const name of ["PUBLIC_SITE_LIVE","PUBLIC_INDEXABLE","LEGAL_PUBLISHED"]){assert.ok(validateStaging({...sample(),[name]:"true"}).some(error=>error.includes(name)));}});
+test("rejects live Paystack keys but accepts configured test keys",()=>{assert.ok(validateStaging({...sample(),PAYSTACK_SECRET_KEY:"sk_live_fake"}).length);assert.ok(validateStaging({...sample(),PAYSTACK_PUBLIC_KEY:"pk_live_fake"}).length);assert.deepEqual(validateStaging({...sample(),PAYSTACK_SECRET_KEY:"sk_test_fake",PAYSTACK_PUBLIC_KEY:"pk_test_fake"}),[]);});
+test("rejects a production database or mismatched Redis password",()=>{const env=sample();assert.ok(validateStaging({...env,DATABASE_URL:env.DATABASE_URL.replace("hotdata_staging","production")}).length);assert.ok(validateStaging({...env,REDIS_URL:"redis://:incorrect@redis:6379"}).length);});
+test("never opts staging into disposable financial tests",()=>{assert.ok(validateStaging({...sample(),RUN_DB_TESTS:"true"}).length);});
+test("rejects missing secrets, duplicate secrets and alternate gateway keys",()=>{const env=sample();assert.ok(validateStaging({...env,AUTH_CODE_SECRET:env.JWT_ACCESS_SECRET}).length);assert.ok(validateStaging({...env,PROVIDER_ENCRYPTION_KEY:"invalid"}).length);assert.ok(validateStaging({...env,MONNIFY_API_KEY:"fake"}).length);assert.ok(validateStaging({}).length);});

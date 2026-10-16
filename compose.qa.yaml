@@ -1,0 +1,47 @@
+name: hotdata-qa
+x-test: &test
+  build: { context: ., target: worker }
+  environment:
+    NODE_ENV: test
+    APP_URL: https://qa.hotdata.test
+    DATABASE_URL: postgresql://test:test@postgres_test:5432/hotdata_test?schema=public
+    REDIS_URL: redis://redis_test:6379
+    JWT_ACCESS_SECRET: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    JWT_REFRESH_SECRET: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    AUTH_CODE_SECRET: cccccccccccccccccccccccccccccccccccccccccccccccc
+    IP_HASH_SECRET: dddddddddddddddddddddddddddddddddddddddddddddddd
+    PROVIDER_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    RUN_DB_TESTS: "true"
+    PUBLIC_SITE_LIVE: "false"
+    PUBLIC_INDEXABLE: "false"
+    LEGAL_PUBLISHED: "false"
+services:
+  tests:
+    <<: *test
+    command: ["npm", "test"]
+    depends_on:
+      migrate_test: { condition: service_completed_successfully }
+      redis_test: { condition: service_healthy }
+  migrate_test:
+    <<: *test
+    command: ["npm", "run", "db:migrate"]
+    depends_on:
+      postgres_test: { condition: service_healthy }
+  postgres_test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: hotdata_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d hotdata_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  redis_test:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12

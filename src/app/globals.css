@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer base {
+  body { @apply bg-canvas font-sans text-ink antialiased; }
+  :focus-visible { @apply outline outline-2 outline-offset-4 outline-brand-dark; }
+  ::selection { @apply bg-brand-accent text-brand-deep; }
+}
+
+@layer components {
+  .customer-input { @apply min-h-11 w-full rounded-button border border-line bg-canvas px-3 py-3 text-ink disabled:bg-slate-50 disabled:text-muted; }
+}
+@media (prefers-reduced-motion: reduce) { .animate-pulse { animation: none; } }
+
+@layer components { .admin-button { @apply inline-flex min-h-11 items-center justify-center rounded-button border border-line bg-white px-4 py-2 text-sm font-semibold text-brand-dark disabled:opacity-50; } .admin-submit { @apply inline-flex min-h-11 items-center justify-center rounded-button bg-brand-dark px-5 py-3 text-sm font-semibold text-white disabled:opacity-50; } .admin-table { @apply w-full text-left text-sm; } .admin-table th { @apply border-b border-line bg-slate-50 px-4 py-3 font-semibold; } .admin-table td { @apply border-b border-line px-4 py-4 align-top; } }
+
+@layer base { html { scroll-behavior: smooth; } input, select, textarea { font-size: 16px; } input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 2px; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

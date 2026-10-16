@@ -1,0 +1,16 @@
+"use client";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { apiRequest, apiResponse } from "@/lib/customer-client";
+import { downloadBlob } from "@/lib/receipt-image";
+export function useAdminData<T>(url: string) { const [data,setData]=useState<T|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),serial=useRef(0);const reload=useCallback(async()=>{const request=++serial.current;setLoading(true);setError("");try{const next=await apiRequest<T>(url);if(request===serial.current)setData(next);}catch(e){if(request===serial.current)setError(e instanceof Error?e.message:"Please retry.");}finally{if(request===serial.current)setLoading(false);}},[url]);useEffect(()=>{void reload();return()=>{serial.current++;};},[reload]);return{data,error,loading,reload}; }
+export function Notice({message}:{message:string}){return message?<p role="status" className="my-4 rounded-card border border-line bg-brand-tint p-4 text-sm text-brand-deep">{message}</p>:null;}
+export function LoadState({loading,error,retry}:{loading:boolean;error:string;retry:()=>void}){return error?<div role="alert" className="rounded-card border border-line p-5"><p>{error}</p><button type="button" onClick={retry} className="admin-button mt-3">Retry</button></div>:loading?<div role="status" className="h-32 animate-pulse rounded-card bg-brand-tint"><span className="sr-only">Loading records</span></div>:null;}
+export function Field({name,label,defaultValue="",type="text",required=true}:{name:string;label:string;defaultValue?:string;type?:string;required?:boolean}){return <label className="block text-sm font-medium">{label}<input name={name} type={type} required={required} defaultValue={defaultValue} maxLength={type==="password"?2000:500} className="customer-input mt-2 w-full" /></label>;}
+export function Reason(){return <label className="block text-sm font-medium">Reason (10–500 characters)<textarea name="reason" required minLength={10} maxLength={500} className="customer-input mt-2 w-full" /></label>;}
+export function Check({name,label,defaultChecked=false}:{name:string;label:string;defaultChecked?:boolean}){return <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" name={name} defaultChecked={defaultChecked} className="h-5 w-5 accent-brand-dark" />{label}</label>;}
+export const values=(form:HTMLFormElement)=>Object.fromEntries(new FormData(form));
+export const message=(e:unknown)=>{const problem=e as{issues?:{message:string}[];message?:string};return problem.issues?.[0]?.message||problem.message||"Please retry.";};
+export function koboInput(kobo:string){const amount=BigInt(kobo);return(amount/100n).toString()+"."+(amount%100n).toString().padStart(2,"0");}
+export async function exportCsv(url:string,name:string){const result=await apiResponse(url);if(!result.ok)throw Error("Export is unavailable. Refresh and retry.");downloadBlob(await result.blob(),name);}
+export function Pager({nextCursor,onNext}:{nextCursor:string|null;onNext:(cursor:string)=>void}){return nextCursor?<button type="button" className="admin-button mt-6" onClick={()=>onNext(nextCursor)}>Next 50 records →</button>:null;}
+export function Empty(){return <p className="rounded-card border border-line bg-white p-6 text-muted">No records match this selection.</p>;}

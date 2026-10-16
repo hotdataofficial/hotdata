@@ -1,0 +1,4 @@
+import { bulkQuoteSchema } from "./validation/agent";
+export function parseBulkInput(text:string,planId:string){if(text.length>6000)throw Error("Use up to 6,000 characters and 50 rows.");const lines=text.trim().split(/\r?\n/).filter(line=>line.trim());if(lines[0]?.trim().toLowerCase()==="phone,planid")lines.shift();return bulkQuoteSchema.parse({rows:lines.map((line,index)=>{const cells=line.split(",").map(cell=>cell.trim());if(cells.length>2||cells.some(cell=>cell.includes('"')))throw Error("Row "+(index+1)+": use phone,planId without quoted cells.");return {phone:cells[0],planId:cells[1]||planId};})}).rows;}
+export function bulkTotal(rows:{expectedPriceKobo:string}[]){return rows.reduce((total,row)=>total+BigInt(row.expectedPriceKobo),0n);}
+export function callbackSigningText(timestamp:string,rawBody:string){return timestamp+"."+rawBody;}

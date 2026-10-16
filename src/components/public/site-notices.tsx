@@ -1,0 +1,2 @@
+import { publicAdminSettings } from "@/server/services/admin-settings";
+export async function SiteNotices(){const settings=await publicAdminSettings();return <>{settings.maintenanceMode&&<p role="status" className="bg-amber-50 px-5 py-3 text-center text-sm font-medium text-amber-900">{settings.maintenanceMessage}</p>}{settings.announcement&&<div className="border-b border-line bg-brand-tint px-5 py-3 text-center text-sm text-brand-deep"><strong>{settings.announcement.title}: </strong>{settings.announcement.body}</div>}</>;}

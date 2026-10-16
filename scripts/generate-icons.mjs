@@ -1,0 +1,7 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { deflateSync } from "node:zlib";
+const table=Array.from({length:256},(_,n)=>{for(let i=0;i<8;i++)n=n&1?0xedb88320^(n>>>1):n>>>1;return n>>>0;});
+function crc(bytes){let c=0xffffffff;for(const b of bytes)c=table[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0;}
+function chunk(type,data){const name=Buffer.from(type),out=Buffer.alloc(data.length+12);out.writeUInt32BE(data.length);name.copy(out,4);data.copy(out,8);out.writeUInt32BE(crc(Buffer.concat([name,data])),8+data.length);return out;}
+function icon(size){const rows=Buffer.alloc(size*(size*4+1));for(let y=0;y<size;y++)for(let x=0;x<size;x++){const a=x/size,b=y/size;const signal=[{x:.27,h:.18},{x:.44,h:.30},{x:.61,h:.44}].some(bar=>a>=bar.x&&a<=bar.x+.12&&b>=.7-bar.h&&b<=.7);const i=y*(size*4+1)+1+x*4;rows.set(signal?[255,255,255,255]:[21,128,61,255],i);}const header=Buffer.alloc(13);header.writeUInt32BE(size);header.writeUInt32BE(size,4);header[8]=8;header[9]=6;return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk("IHDR",header),chunk("IDAT",deflateSync(rows)),chunk("IEND",Buffer.alloc(0))]);}
+const directory=new URL("../public/icons/",import.meta.url);await mkdir(directory,{recursive:true});for(const size of [192,512])await writeFile(new URL("icon-"+size+".png",directory),icon(size));await writeFile(new URL("maskable-512.png",directory),icon(512));console.log("Generated safe-zone signal icons");

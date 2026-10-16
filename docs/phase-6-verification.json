@@ -1,0 +1,42 @@
+{
+  "phase": 6,
+  "typecheck": {
+    "passed": true,
+    "scope": "Full application tsc --noEmit"
+  },
+  "isolatedActualSourceChecks": {
+    "passed": 33,
+    "total": 33
+  },
+  "vitest": {
+    "passed": false,
+    "status": "startup blocked",
+    "reason": "esbuild ancestor-directory access denied"
+  },
+  "productionBuild": {
+    "passed": false,
+    "status": "timed out after 90 seconds during webpack optimisation",
+    "nextVersion": "16.4.0"
+  },
+  "databaseIntegration": {
+    "executed": false,
+    "reason": "PostgreSQL and Redis unavailable"
+  },
+  "browserPreview": {
+    "url": "http://127.0.0.1:3100/admin-demo",
+    "desktopScreenshot": "hotdata-phase-6-preview.png",
+    "mobileScreenshot": "hotdata-phase-6-mobile.png",
+    "customerSearchPassed": true,
+    "pendingTransactionFilterPassed": true,
+    "mobileHorizontalOverflow": false,
+    "actualReportedMobileWidth": 480,
+    "sampleDataOnly": true
+  },
+  "providers": {
+    "liveAdaptersEnabled": false
+  },
+  "scope": {
+    "phase7": false,
+    "phase8": false
+  }
+}

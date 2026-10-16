@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.env*
+!.env.example
+coverage
+private-uploads
+
+playwright-report
+test-results
+.vercel
+.neon
+.agents
+.codex
