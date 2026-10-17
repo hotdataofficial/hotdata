@@ -7,7 +7,7 @@ import { purchaseSchema } from "@/lib/validation/purchases";
 import { savedPurchaseSchema, type SavedPurchase } from "@/lib/validation/customer";
 import { apiRequest, ApiError } from "@/lib/customer-client";
 import { formatKobo } from "@/lib/money";
-import { guessNetwork, displayPlanType } from "@/lib/customer";
+import { guessNetwork, displayPlanType, selectedPlanType } from "@/lib/customer";
 import { CustomerLoading, ErrorMessage } from "./shared";
 import { useCustomerUser } from "./customer-shell";
 type Plan = { id: string; networkId: string; name: string; type: string; sizeMb: number; validityDays: number; priceKobo: string; available: boolean };
@@ -47,8 +47,9 @@ export function PurchasePanel() {
     if (!review && dialog.current?.open) dialog.current.close();
   }, [review]);
   const networkId = catalog?.networks.find(n => n.code === network)?.id;
-  const plans = catalog?.plans.filter(p => p.networkId === networkId && p.type === type) || [];
   const types = Array.from(new Set(catalog?.plans.filter(p => p.networkId === networkId).map(p => p.type) || []));
+  const activeType = selectedPlanType(types, type, locked);
+  const plans = catalog?.plans.filter(p => p.networkId === networkId && p.type === activeType) || [];
   const livePlan = catalog?.plans.find(p => p.id === planId);
   const plan = livePlan || (locked && draft.current ? { id: draft.current.planId, name: draft.current.planName || "Saved data purchase", priceKobo: draft.current.quotedPriceKobo || "0", available: false } : undefined);
   function phoneChanged(value: string) { setPhone(value); if (!manualNetwork) { const guess = guessNetwork(value); if (guess) { setNetwork(guess); setPlanId(""); } } }
@@ -64,7 +65,7 @@ export function PurchasePanel() {
     if (submitting.current || !plan || !storageReady) return;
     submitting.current = true; setBusy(true); setError("");
     try {
-      const saved = draft.current || savedPurchaseSchema.parse({ planId, phone, idempotencyKey: crypto.randomUUID(), quotedPriceKobo: plan.priceKobo, planName: plan.name, networkCode: network, planType: type });
+      const saved = draft.current || savedPurchaseSchema.parse({ planId, phone, idempotencyKey: crypto.randomUUID(), quotedPriceKobo: plan.priceKobo, planName: plan.name, networkCode: network, planType: activeType });
       // Persist before any financial request. PINs are only held in component memory.
       sessionStorage.setItem(storageKey, JSON.stringify(saved)); draft.current = saved; setLocked(true);
       const input = purchaseSchema.parse({ planId: saved.planId, phone: saved.phone, idempotencyKey: saved.idempotencyKey, pin, expectedPriceKobo: saved.quotedPriceKobo });
@@ -94,7 +95,7 @@ export function PurchasePanel() {
       <label className="block text-sm">Phone number<input disabled={locked || busy} value={phone} onChange={e => phoneChanged(e.target.value)} className="customer-input mt-2" type="tel" autoComplete="tel" required maxLength={24} aria-describedby="network-help" placeholder="0801 234 5678" /></label>
       <p id="network-help" className="text-xs leading-5 text-muted">Prefix detection is a suggestion. Numbers can move networks, so confirm or change the network below.</p>
       <label className="block text-sm">Network<select disabled={locked || busy} value={network} onChange={e => { setNetwork(e.target.value); setManualNetwork(true); setPlanId(""); setType("SME"); }} className="customer-input mt-2">{catalog.networks.map(n => <option key={n.id} value={n.code}>{n.name}</option>)}</select></label>
-      <label className="block text-sm">Plan type<select disabled={locked || busy} value={type} onChange={e => { setType(e.target.value); setPlanId(""); }} className="customer-input mt-2">{!types.includes(type) && <option value={type}>{displayPlanType(type)} (no plans)</option>}{types.map(t => <option key={t} value={t}>{displayPlanType(t)}</option>)}</select></label>
+      <label className="block text-sm">Plan type<select disabled={locked || busy} value={activeType} onChange={e => { setType(e.target.value); setPlanId(""); }} className="customer-input mt-2">{!types.includes(activeType) && <option value={activeType}>{displayPlanType(activeType)} (no plans)</option>}{types.map(t => <option key={t} value={t}>{displayPlanType(t)}</option>)}</select></label>
       <fieldset disabled={locked || busy}><legend className="mb-3 text-sm">Choose a plan</legend><div className="grid gap-3 sm:grid-cols-2">{plans.map(p => <label key={p.id} className={"flex min-h-24 cursor-pointer items-start gap-3 rounded-button border p-4 " + (planId === p.id ? "border-brand-dark bg-brand-tint" : "border-line") + (!p.available ? " opacity-60" : "")}><input type="radio" name="plan" value={p.id} checked={planId === p.id} onChange={() => setPlanId(p.id)} disabled={!p.available} className="mt-1 h-4 w-4 accent-brand-dark" /><span><strong className="block text-sm">{p.name}</strong><span className="mt-1 block text-xs text-muted">{p.validityDays} days · {formatKobo(p.priceKobo)}</span>{!p.available && <span className="mt-1 block text-xs text-muted">Temporarily unavailable</span>}</span></label>)}</div>{!plans.length && <p className="rounded-button bg-slate-50 p-4 text-sm text-muted">No plans are available for this selection. Try another network or plan type.</p>}</fieldset>
       {locked && plan && <p className="rounded-button bg-brand-tint p-3 text-sm">{plan.name} · {plan.priceKobo === "0" ? "original request price" : formatKobo(plan.priceKobo)} · saved request</p>}
       <label className="block text-sm">Transaction PIN<input disabled={busy} className="customer-input mt-2" value={pin} onChange={e => setPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))} type="password" inputMode="numeric" autoComplete="off" pattern="[0-9]{4}" maxLength={4} required placeholder="Four-digit PIN" /></label>

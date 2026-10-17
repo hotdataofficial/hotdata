@@ -25,3 +25,8 @@ export type Receipt = {
   plan: { name: string; networkCode: string; type: string; sizeMb: number; validityDays: number } | null;
   historicalSnapshot: boolean; customerName: string; planId: string | null;
 };
+
+// Keep a saved retry unchanged; fresh purchases must use a type offered by the network.
+export function selectedPlanType(types: string[], requested: string, locked = false): string {
+  return locked || types.includes(requested) ? requested : (types[0] || requested);
+}

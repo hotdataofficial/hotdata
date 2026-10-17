@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { guessNetwork, transactionLabel } from "../../src/lib/customer";
+import { guessNetwork, transactionLabel, selectedPlanType } from "../../src/lib/customer";
 import { lagosDay, historyDates } from "../../src/lib/history-dates";
 import { beneficiarySchema, savedPurchaseSchema, historyQuerySchema } from "../../src/lib/validation/customer";
 import { receiptPdf } from "../../src/server/receipts/pdf";
@@ -39,5 +39,16 @@ describe("customer safeguards", () => {
     entries.forEach((line, index) => { const offset = Number(line.slice(0, 10)); expect(pdf.slice(offset, offset + 7)).toBe((index + 1) + " 0 obj"); });
     expect(Buffer.from(receiptPdf({ ...receipt, status: "PENDING", completedAt: null })).toString()).toContain("Awaiting confirmation");
     expect(Buffer.from(receiptPdf({ ...receipt, status: "FAILED", refundedAt: receipt.createdAt })).toString()).toContain("Failed, refunded");
+  });
+});
+
+describe("network plan type selection", () => {
+  it("shows direct bundles on networks without SME, including automatic phone selection", () => {
+    expect(selectedPlanType(["DIRECT"], "SME")).toBe("DIRECT");
+  });
+  it("preserves valid choices and retains locked retry identity", () => {
+    expect(selectedPlanType(["SME", "DIRECT"], "DIRECT")).toBe("DIRECT");
+    expect(selectedPlanType(["DIRECT"], "SME", true)).toBe("SME");
+    expect(selectedPlanType([], "SME")).toBe("SME");
   });
 });
