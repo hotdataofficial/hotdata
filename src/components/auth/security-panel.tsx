@@ -15,7 +15,11 @@ export function SecurityPanel({ user }: { user: Profile }) {
     try {
       const result = await authRequest(action, data); setMessage(result.message);
       if (["logout", "change-password"].includes(action) || (action === "revoke-session" && sessions.find(s => s.id === (data as { sessionId: string }).sessionId)?.current)) { router.push("/login"); router.refresh(); return; }
-      if (action === "verify" || action === "set-pin") setProfile((await authRequest("me", undefined, "GET")).user);
+      if (action === "verify" || action === "set-pin") {
+        setProfile((await authRequest("me", undefined, "GET")).user);
+        // Refresh the shared customer layout too, so buying is enabled after PIN setup.
+        router.refresh();
+      }
       if (action === "revoke-session") setSessions((await authRequest("sessions", undefined, "GET")).sessions);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Please try again."); }
     finally { setBusy(false); }

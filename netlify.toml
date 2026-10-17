@@ -19,3 +19,12 @@
   HOTDATA_WORKER_MODE = "disabled"
   KORAPAY_ALLOW_LIVE = "false"
   GSUBZ_ALLOW_LIVE = "false"
+
+# Netlify serves this static offline document without passing through Next.js.
+[[headers]]
+  for = "/offline.html"
+  [headers.values]
+    Content-Security-Policy = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

@@ -12,7 +12,14 @@ async function send(action: string, data: unknown, method: string) {
   return fetch("/api/auth/" + action, { method, credentials: "same-origin", cache: "no-store", headers: method === "GET" ? {} : { "content-type": "application/json", "x-csrf-token": await csrfToken() }, body: method === "GET" ? undefined : JSON.stringify(data || {}) });
 }
 export function refreshSession(): Promise<unknown> {
-  if (!refreshPromise) refreshPromise = authRequest("refresh").finally(() => { refreshPromise = undefined; });
+  if (!refreshPromise) {
+    // Single flight inside this tab plus an origin-wide browser lock. Otherwise
+    // two tabs can rotate the same cookie and revoke a legitimate session as replay.
+    const refresh = () => authRequest("refresh");
+    refreshPromise = (typeof navigator !== "undefined" && navigator.locks?.request
+      ? navigator.locks.request("hotdata-session-refresh", refresh)
+      : refresh()).finally(() => { refreshPromise = undefined; });
+  }
   return refreshPromise;
 }
 export async function authRequest(action: string, data?: unknown, method = "POST"): Promise<any> {
