@@ -52,7 +52,11 @@ export function AirtimePanel() {
   function openReview(e: React.FormEvent) {
     e.preventDefault(); setError("");
     const parsed = airtimePurchaseSchema.safeParse({ ...(draft.current || { networkCode: network, phone, amountKobo, idempotencyKey: crypto.randomUUID() }), pin });
-    if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
+    if (!parsed.success) {
+      const field = parsed.error.issues[0]?.path[0];
+      setError(field === "phone" ? "Enter a valid Nigerian phone number." : field === "amountKobo" ? "Choose a whole-naira amount from ₦100 to ₦10,000." : field === "pin" ? "Enter your four-digit transaction PIN." : "Choose a supported network.");
+      return;
+    }
     if (!locked && (!selectedNetwork?.available || BigInt(parsed.data.amountKobo) > BigInt(balance))) { setError("Check this network is available and your wallet has enough funds."); return; }
     const { pin: ignoredPin, ...saved } = parsed.data; void ignoredPin;
     setReview(saved);
