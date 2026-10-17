@@ -54,7 +54,7 @@ export class KorapayGateway implements PaymentGateway {
     const data = z.object({ reference: z.string(), checkout_url: z.url() }).parse(await this.api("/charges/initialize", {
       reference: input.reference, amount: Number(input.amountKobo) / 100, currency: "NGN",
       customer: { email: input.email }, redirect_url: input.callbackUrl,
-      notification_url: new URL("/api/webhooks/korapay", callback.origin).toString(), merchant_bears_cost: true,
+      notification_url: new URL("/api/webhooks/korapay", callback.origin).toString(), merchant_bears_cost: false,
     }));
     const url = new URL(data.checkout_url);
     if (data.reference !== input.reference || url.protocol !== "https:" || url.hostname !== "checkout.korapay.com" || url.username || url.password || (url.port && url.port !== "443")) throw new HttpError(502, "Unexpected Korapay checkout response.");

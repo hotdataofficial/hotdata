@@ -27,7 +27,7 @@ describe("Korapay checkout and payment verification", () => {
     response({ reference: "HD-test", checkout_url: "https://checkout.korapay.com/HD-test/pay" });
     await expect(new KorapayGateway().initialize({ reference: "HD-test", email: "buyer@example.com", amountKobo: 123401n, callbackUrl: "https://hotdata.example/wallet?reference=HD-test" })).resolves.toEqual({ checkoutUrl: "https://checkout.korapay.com/HD-test/pay" });
     const options = vi.mocked(fetch).mock.calls[0][1]!;
-    expect(JSON.parse(options.body as string)).toMatchObject({ amount: 1234.01, currency: "NGN", notification_url: "https://hotdata.example/api/webhooks/korapay" });
+    expect(JSON.parse(options.body as string)).toMatchObject({ amount: 1234.01, currency: "NGN", merchant_bears_cost: false, notification_url: "https://hotdata.example/api/webhooks/korapay" });
   });
   it("rejects an unexpected checkout host or reference", async () => {
     vi.stubEnv("KORAPAY_SECRET_KEY", key);
@@ -40,6 +40,10 @@ describe("Korapay checkout and payment verification", () => {
     vi.stubEnv("KORAPAY_SECRET_KEY", key); response(charge);
     await expect(new KorapayGateway().verify("HD-test")).resolves.toMatchObject({ reference: "HD-test", amountKobo: 123401n, email: "buyer@example.com", domain: "test" });
     expect(vi.mocked(fetch).mock.calls[0][0]).toBe("https://api.korapay.com/merchant/api/v1/charges/HD-test");
+  });
+  it("keeps a separately reported gateway fee out of the wallet funding amount", async () => {
+    vi.stubEnv("KORAPAY_SECRET_KEY", key); response({ ...charge, fee: "18.51", merchant_bears_cost: false });
+    await expect(new KorapayGateway().verify("HD-test")).resolves.toMatchObject({ amountKobo: 123401n });
   });
   it("rejects reference mismatch, underpayment and overpayment", async () => {
     vi.stubEnv("KORAPAY_SECRET_KEY", key);
