@@ -13,7 +13,7 @@ const workKinds = ["VTU_PURCHASE", "EMAIL_FUNDING", "EMAIL_PURCHASE", "AGENT_CAL
 export async function hasNetlifyWork() {
   const now = new Date();
   return !!(await db.fundingTransaction.findFirst({ where: recoverableFundingWhere(), select: { id: true } }) || await db.outboxEvent.findFirst({ where: { kind: { in: workKinds }, deliveredAt: null, availableAt: { lte: now }, OR: [{kind:{notIn:["EMAIL_FUNDING","EMAIL_PURCHASE"]}},{attempts:{lt:10}}] }, select: { id: true } }) ||
-    await db.transaction.findFirst({ where: { type: "DATA", status: "PENDING", updatedAt: { lte: new Date(Date.now() - 60000) }, OR: [{ processingUntil: null }, { processingUntil: { lte: now } }] }, select: { id: true } }));
+    await db.transaction.findFirst({ where: { type: { in: ["DATA", "AIRTIME"] }, status: "PENDING", updatedAt: { lte: new Date(Date.now() - 60000) }, OR: [{ processingUntil: null }, { processingUntil: { lte: now } }] }, select: { id: true } }));
 }
 export async function runNetlifyJobs() {
   // Database-wide lease bounds duplicate wake-ups. Purchase-level leases remain authoritative.
@@ -39,7 +39,7 @@ export async function runNetlifyJobs() {
       await db.outboxEvent.update({ where: { id: event.id }, data: { deliveredAt: new Date() } });
     }
     // Query uncertain attempts by their original reference. Never resend or refund UNKNOWN.
-    const pending = await db.transaction.findMany({ where: { type: "DATA", status: "PENDING", id: { notIn: [...visited] }, updatedAt: { lte: new Date(Date.now() - 60000) }, OR: [{ processingUntil: null }, { processingUntil: { lte: new Date() } }] }, orderBy: [{ updatedAt: "asc" }, { id: "asc" }], take: 20, select: { id: true } });
+    const pending = await db.transaction.findMany({ where: { type: { in: ["DATA", "AIRTIME"] }, status: "PENDING", id: { notIn: [...visited] }, updatedAt: { lte: new Date(Date.now() - 60000) }, OR: [{ processingUntil: null }, { processingUntil: { lte: new Date() } }] }, orderBy: [{ updatedAt: "asc" }, { id: "asc" }], take: 20, select: { id: true } });
     for (const order of pending) {
       if (Date.now() >= deadline) break;
       await processPurchase(order.id);

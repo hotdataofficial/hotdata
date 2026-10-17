@@ -1,6 +1,7 @@
+import { airtimeSnapshotSchema } from "@/lib/airtime";
 import { randomUUID, createHash } from "node:crypto";
 import type { z } from "zod";
-import type { Prisma, User } from "@prisma/client";
+import type { Prisma, User, Provider } from "@prisma/client";
 import { lockAgentKey } from "../auth/api-keys";
 import { purchaseFinalEvents } from "./referrals";
 import { db } from "../db";
@@ -27,7 +28,7 @@ export async function stageDataPurchase(tx:Prisma.TransactionClient,user:User,in
     const capText = user.role === "AGENT" ? process.env.AGENT_PURCHASE_DAILY_LIMIT_KOBO || "1000000000" : process.env.PURCHASE_DAILY_LIMIT_KOBO || "100000000";
     if (!/^[1-9]\d{0,14}$/.test(capText)) throw new Error("Invalid purchase daily limit.");
     const lagos = Date.now() + 3600000, day = new Date(Math.floor(lagos / 86400000) * 86400000 - 3600000);
-    const total = await tx.transaction.aggregate({ where: { userId, type: "DATA", status: { in: ["PENDING", "SUCCESSFUL"] }, createdAt: { gte: day } }, _sum: { amountKobo: true } });
+    const total = await tx.transaction.aggregate({ where: { userId, type: { in: ["DATA", "AIRTIME"] }, status: { in: ["PENDING", "SUCCESSFUL"] }, createdAt: { gte: day } }, _sum: { amountKobo: true } });
     if ((total._sum.amountKobo || 0n) + amountKobo > BigInt(capText)) throw new HttpError(400, "Daily purchase limit reached.");
     const purchase = await tx.transaction.create({ data: { userId, reference: "HD-D-" + randomUUID(), idempotencyKey: input.idempotencyKey, requestHash: hash, type: "DATA", apiKeyId: context.apiKeyId, bulkBatchId: context.bulkBatchId, bulkRow: context.bulkRow, phone: input.phone, planId: plan.id, planSnapshot: { name: plan.name, networkCode: plan.network.code, type: plan.type, sizeMb: plan.sizeMb, validityDays: plan.validityDays }, amountKobo, costKobo: plan.costKobo, profitKobo: amountKobo - plan.costKobo } });
     await moveMoney(tx, userId, -amountKobo, "PURCHASE", purchase.reference + "-DEBIT", "Data purchase", { transactionId: purchase.id });
@@ -52,15 +53,22 @@ export async function processPurchase(transactionId: string, factory: ProviderFa
   const claimed = await db.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Transaction" WHERE id = ${transactionId} FOR UPDATE`;
     const order = await tx.transaction.findUnique({ where: { id: transactionId }, include: { attempts: { orderBy: { createdAt: "asc" }, include: { provider: true } }, plan: { include: { network: true, mappings: { where: { active: true, provider: { active: true, deletedAt: null } }, include: { provider: true } } } } } });
-    if (!order || order.type !== "DATA" || order.status !== "PENDING" || (order.processingUntil && order.processingUntil > new Date())) return null;
+    if (!order || !(["DATA", "AIRTIME"].includes(order.type)) || order.status !== "PENDING" || (order.processingUntil && order.processingUntil > new Date())) return null;
     const pending = order.attempts.find(a => a.status === "PENDING");
     if (order.attempts.some(a => a.status === "SUCCESSFUL")) throw new Error("Purchase state requires operator review.");
     let attempt = pending, send = false;
     if (!attempt) {
       const tried = new Set(order.attempts.map(a => a.providerId));
-      const mapping = order.plan?.mappings.filter(m => !tried.has(m.providerId) && ready(m.provider.adapter)).sort((a, b) => a.provider.priority - b.provider.priority || a.providerId.localeCompare(b.providerId))[0];
+      let mapping: { providerId: string; providerPlanCode: string; provider: Provider } | undefined = order.type === "DATA" ? order.plan?.mappings.filter(m => !tried.has(m.providerId) && ready(m.provider.adapter)).sort((a, b) => a.provider.priority - b.provider.priority || a.providerId.localeCompare(b.providerId))[0] : undefined;
+      if (order.type === "AIRTIME") {
+        const snapshot = airtimeSnapshotSchema.safeParse(order.planSnapshot);
+        const provider = snapshot.success && snapshot.data.faceValueKobo === order.amountKobo.toString() ? await tx.provider.findFirst({ where: { id: snapshot.data.providerId, code: "GSUBZ", adapter: "gsubz", active: true, deletedAt: null } }) : null;
+        if (provider && snapshot.success && !tried.has(provider.id) && ready(provider.adapter)) {
+          mapping = { providerId: provider.id, providerPlanCode: snapshot.data.networkCode, provider };
+        }
+      }
       if (mapping) {
-        attempt = await tx.providerAttempt.create({ data: { transactionId, providerId: mapping.providerId, reference: "HD-P-" + randomUUID(), providerPlanCode: mapping.providerPlanCode, networkCode: order.plan!.network.code, requestRedacted: { operation: "DATA" } }, include: { provider: true } });
+        attempt = await tx.providerAttempt.create({ data: { transactionId, providerId: mapping.providerId, reference: "HD-P-" + randomUUID(), providerPlanCode: mapping.providerPlanCode, networkCode: order.type === "AIRTIME" ? mapping.providerPlanCode : order.plan!.network.code, requestRedacted: { operation: order.type } }, include: { provider: true } });
         send = true;
       }
     }
@@ -74,7 +82,7 @@ export async function processPurchase(transactionId: string, factory: ProviderFa
       const adapter = factory(claimed.attempt.provider);
       const priorResult = claimed.attempt.responseRedacted;
       const supplierId = priorResult && typeof priorResult === "object" && !Array.isArray(priorResult) && typeof priorResult.providerTransactionId === "string" ? priorResult.providerTransactionId : undefined;
-      result = safeResult(await bounded(claimed.send ? adapter.buyData({ reference: claimed.attempt.reference, phone: claimed.order.phone, providerPlanCode: claimed.attempt.providerPlanCode, networkCode: claimed.attempt.networkCode, expectedCostKobo: claimed.order.costKobo.toString() }) : adapter.checkStatus(claimed.attempt.reference, supplierId), claimed.attempt.provider.adapter === "gsubz" ? 85000 : 10000));
+      result = safeResult(await bounded(claimed.send ? claimed.order.type === "AIRTIME" ? adapter.buyAirtime({ reference: claimed.attempt.reference, phone: claimed.order.phone, networkCode: claimed.attempt.networkCode, amountKobo: claimed.order.amountKobo }) : adapter.buyData({ reference: claimed.attempt.reference, phone: claimed.order.phone, providerPlanCode: claimed.attempt.providerPlanCode, networkCode: claimed.attempt.networkCode, expectedCostKobo: claimed.order.costKobo.toString() }) : adapter.checkStatus(claimed.attempt.reference, supplierId), claimed.attempt.provider.adapter === "gsubz" ? 85000 : 10000));
     } catch { result = { status: "UNKNOWN", code: "PROVIDER_UNCERTAIN" }; }
   }
   await db.$transaction(async tx => {
@@ -95,12 +103,12 @@ export async function processPurchase(transactionId: string, factory: ProviderFa
       }
     }
     if (result.status === "FAILED") {
-      await moveMoney(tx, current.userId, current.amountKobo, "REFUND", current.reference + "-REFUND", "Data purchase refund", { transactionId });
+      await moveMoney(tx, current.userId, current.amountKobo, "REFUND", current.reference + "-REFUND", (current.type === "AIRTIME" ? "Airtime" : "Data") + " purchase refund", { transactionId });
     }
     await tx.transaction.update({ where: { id: transactionId }, data: { ...release, status: result.status, completedAt: new Date(), refundedAt: result.status === "FAILED" ? new Date() : null, failureReason: result.status === "FAILED" ? result.code : null, ...(result.status === "SUCCESSFUL" && result.costKobo ? {costKobo:BigInt(result.costKobo)} : {}), profitKobo: result.status === "FAILED" ? 0n : result.costKobo ? current.amountKobo-BigInt(result.costKobo) : current.profitKobo } });
     await purchaseFinalEvents(tx, current.id);
-    await tx.notification.create({ data: { userId: current.userId, title: result.status === "SUCCESSFUL" ? "Data delivered" : "Data purchase refunded", body: "Reference: " + current.reference } });
+    await tx.notification.create({ data: { userId: current.userId, title: (current.type === "AIRTIME" ? "Airtime" : "Data") + (result.status === "SUCCESSFUL" ? " delivered" : " purchase refunded"), body: "Reference: " + current.reference } });
     const owner = await tx.user.findUniqueOrThrow({ where: { id: current.userId }, select: { email: true } });
-    await tx.outboxEvent.create({ data: { kind: "EMAIL_PURCHASE", dedupeKey: "purchase-email:" + current.id, payload: { email: owner.email, reference: current.reference, amountKobo: current.amountKobo.toString(), status: result.status, refunded: result.status === "FAILED" } } });
+    await tx.outboxEvent.create({ data: { kind: "EMAIL_PURCHASE", dedupeKey: "purchase-email:" + current.id, payload: { email: owner.email, reference: current.reference, amountKobo: current.amountKobo.toString(), purchaseType: current.type, status: result.status, refunded: result.status === "FAILED" } } });
   }, { timeout: 15000 });
 }

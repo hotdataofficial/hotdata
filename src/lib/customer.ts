@@ -20,6 +20,7 @@ export function displayPlanType(value: string) {
   return ({ SME: "SME", GIFTING: "Gifting", CORPORATE_GIFTING: "Corporate gifting", DIRECT: "Direct" } as Record<string, string>)[value] || value;
 }
 export type Receipt = {
+  purchaseType?: "DATA" | "AIRTIME";
   reference: string; status: "PENDING" | "SUCCESSFUL" | "FAILED"; phone: string; amountKobo: string;
   refundedAt: string | null; createdAt: string; completedAt: string | null;
   plan: { name: string; networkCode: string; type: string; sizeMb: number; validityDays: number } | null;

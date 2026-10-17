@@ -50,7 +50,7 @@ export function json(value: unknown, status = 200) {
 export function endpoint(handler: (req: NextRequest) => Promise<NextResponse>) {
   return async (req: NextRequest) => {
     try {
-      if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && (["/api/purchases","/api/v1/buy-data","/api/agent/bulk","/api/agent/upgrade"].includes(req.nextUrl.pathname) || req.nextUrl.pathname.startsWith("/api/wallet/"))) {
+      if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && (["/api/purchases","/api/airtime","/api/v1/buy-data","/api/agent/bulk","/api/agent/upgrade"].includes(req.nextUrl.pathname) || req.nextUrl.pathname.startsWith("/api/wallet/"))) {
         const { maintenanceEnabled } = await import("../services/admin-settings");
         if (await maintenanceEnabled()) throw new HttpError(503, "New purchases and funding requests are paused for maintenance. Existing payments and pending outcomes are still reconciled.");
       }

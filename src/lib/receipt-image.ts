@@ -9,7 +9,7 @@ export async function receiptImage(receipt: Receipt): Promise<Blob> {
   ctx.fillStyle = colors.deep; ctx.fillRect(0, 0, 1080, 235);
   ctx.fillStyle = colors.accent; [28, 45, 65].forEach((height, index) => ctx.fillRect(70 + index * 22, 116 - height, 14, height));
   ctx.fillStyle = colors.white; ctx.font = "700 54px system-ui"; ctx.fillText("Hotdata", 160, 113);
-  ctx.font = "26px system-ui"; ctx.fillText("Data purchase receipt", 70, 177);
+  ctx.font = "26px system-ui"; ctx.fillText(receipt.purchaseType === "AIRTIME" ? "Airtime purchase receipt" : "Data purchase receipt", 70, 177);
   function wrap(text: string, x: number, y: number, width: number, lineHeight: number) {
     let line = "", row = 0;
     // Wrap long references and phone text without clipping.
@@ -19,7 +19,7 @@ export async function receiptImage(receipt: Receipt): Promise<Blob> {
   let y = 300;
   const rows = [
     ["Status", transactionLabel(receipt.status, receipt.refundedAt)], ["Bundle", receipt.plan ? receipt.plan.networkCode + " · " + receipt.plan.name : "Data purchase"],
-    ["Plan type", receipt.plan ? displayPlanType(receipt.plan.type) : "Unavailable"], ["Recipient", receipt.phone],
+    [receipt.purchaseType === "AIRTIME" ? "Service" : "Plan type", receipt.purchaseType === "AIRTIME" ? "Airtime top-up" : receipt.plan ? displayPlanType(receipt.plan.type) : "Unavailable"], ["Recipient", receipt.phone],
     ["Amount", formatKobo(receipt.amountKobo)], ["Reference", receipt.reference], ["Created", lagosDate(receipt.createdAt)],
   ];
   for (const [label, value] of rows) {

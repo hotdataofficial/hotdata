@@ -14,6 +14,6 @@ export const POST = endpoint(async (req: NextRequest) => {
 export const GET = endpoint(async (req: NextRequest) => {
   const actor = await requireActor(req); await rateLimit("purchase-read", actor.id, 120, 60);
   const reference = req.nextUrl.searchParams.get("reference");
-  const rows = await db.transaction.findMany({ where: { userId: actor.id, type: "DATA", ...(reference ? { reference: reference.slice(0, 100) } : {}) }, orderBy: { createdAt: "desc" }, take: 50 });
+  const rows = await db.transaction.findMany({ where: { userId: actor.id, type: { in: ["DATA", "AIRTIME"] }, ...(reference ? { reference: reference.slice(0, 100) } : {}) }, orderBy: { createdAt: "desc" }, take: 50 });
   return json({ purchases: rows.map(purchaseView) });
 });

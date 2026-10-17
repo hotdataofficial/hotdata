@@ -39,7 +39,7 @@ async function tick() {
       await db.outboxEvent.update({ where: { id: event.id }, data: { deliveredAt: new Date() } });
     }
     // Cursor cycling visits every pending order, including ones with lost queue jobs.
-    const pending = await db.transaction.findMany({ where: { type: "DATA", status: "PENDING", ...(cursor ? { id: { gt: cursor } } : {}), OR: [{ processingUntil: null }, { processingUntil: { lte: new Date() } }] }, orderBy: { id: "asc" }, take: 100, select: { id: true } });
+    const pending = await db.transaction.findMany({ where: { type: { in: ["DATA", "AIRTIME"] }, status: "PENDING", ...(cursor ? { id: { gt: cursor } } : {}), OR: [{ processingUntil: null }, { processingUntil: { lte: new Date() } }] }, orderBy: { id: "asc" }, take: 100, select: { id: true } });
     for (const order of pending) await queue.add("reconcile", { transactionId: order.id }, { jobId: "reconcile-" + order.id + "-" + Math.floor(Date.now() / 60000), removeOnComplete: { age: 3600 }, removeOnFail: { age: 86400 } });
     cursor = pending.length === 100 ? pending[99].id : undefined;
     await dispatchFundingEmails();

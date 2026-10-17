@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-const customerPaths = ["/dashboard", "/buy-data", "/wallet", "/history", "/beneficiaries", "/notifications", "/profile", "/security", "/support", "/receipts", "/admin", "/agent", "/referrals"];
+const customerPaths = ["/dashboard", "/buy-data", "/buy-airtime", "/wallet", "/history", "/beneficiaries", "/notifications", "/profile", "/security", "/support", "/receipts", "/admin", "/agent", "/referrals"];
 function customer(path: string) { return customerPaths.some(p => path === p || path.startsWith(p + "/")); }
 export function PublicHeader({ name = "Hotdata", logo = "/logo.svg" }: { name?: string; logo?: string }) {
   const pathname = usePathname(); if (customer(pathname)) return null;

@@ -13,8 +13,8 @@ export async function dispatchPurchaseEmails(limit = 20) {
     });
     if (!event) break;
     try {
-      const input = z.object({ email: z.email(), reference: z.string().min(1).max(100), amountKobo: z.string().regex(/^[1-9]\d{0,14}$/), status: z.enum(["SUCCESSFUL", "FAILED"]), refunded: z.boolean() }).parse(event.payload);
-      const title = input.status === "SUCCESSFUL" ? "Your Hotdata data receipt" : "Your Hotdata purchase was refunded";
+      const input = z.object({ email: z.email(), reference: z.string().min(1).max(100), amountKobo: z.string().regex(/^[1-9]\d{0,14}$/), status: z.enum(["SUCCESSFUL", "FAILED"]), purchaseType: z.enum(["DATA", "AIRTIME"]).default("DATA"), refunded: z.boolean() }).parse(event.payload);
+      const title = input.status === "SUCCESSFUL" ? "Your Hotdata " + (input.purchaseType === "AIRTIME" ? "airtime" : "data") + " receipt" : "Your Hotdata purchase was refunded";
       const receiptUrl = new URL("/receipts/" + encodeURIComponent(input.reference), config().APP_URL).toString();
       await sendEmail(input.email, title, "Reference: " + input.reference + ". Amount: " + formatKobo(input.amountKobo) + ". Status: " + (input.status === "SUCCESSFUL" ? "Successful" : input.refunded ? "Failed, refunded" : "Failed") + ". Sign in to view your receipt: " + receiptUrl);
       await db.outboxEvent.update({ where: { id: event.id }, data: { deliveredAt: new Date() } }); delivered++;

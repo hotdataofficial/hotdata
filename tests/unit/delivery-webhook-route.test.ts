@@ -33,9 +33,9 @@ it("ignores a duplicate without requeuing work", async () => {
   expect((await POST(request())).status).toBe(200);
   expect(m.queue).not.toHaveBeenCalled(); expect(m.wake).not.toHaveBeenCalled();
 });
-it("queues only a status check for existing unrefunded pending data attempts", async () => {
+it("queues only a status check for existing unrefunded pending data or airtime attempts", async () => {
   expect((await POST(request())).status).toBe(200);
-  expect(m.attempts.mock.calls[0][0].where).toMatchObject({ providerId: "supplier", status: "PENDING", transaction: { type: "DATA", status: "PENDING", refundedAt: null } });
+  expect(m.attempts.mock.calls[0][0].where).toMatchObject({ providerId: "supplier", status: "PENDING", transaction: { type: { in: ["DATA", "AIRTIME"] }, status: "PENDING", refundedAt: null } });
   expect(m.queue).toHaveBeenCalledOnce(); expect(m.wake).toHaveBeenCalledOnce();
 });
 it("does not enqueue unknown or finalized references", async () => {

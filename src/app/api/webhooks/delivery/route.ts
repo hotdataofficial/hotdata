@@ -23,7 +23,7 @@ export const POST = endpoint(async (req: NextRequest) => {
     if (!receipt.count || event.event === "webhook.test" || !event.references.length) return false;
     const attempts = await tx.providerAttempt.findMany({ where: {
       providerId: provider.id, reference: { in: event.references }, status: "PENDING",
-      transaction: { type: "DATA", status: "PENDING", refundedAt: null },
+      transaction: { type: { in: ["DATA", "AIRTIME"] }, status: "PENDING", refundedAt: null },
     }, select: { id: true, transactionId: true } });
     for (const attempt of attempts) await tx.outboxEvent.create({ data: {
       kind: "VTU_PURCHASE", dedupeKey: `delivery-check:${event.eventId}:${attempt.id}`,

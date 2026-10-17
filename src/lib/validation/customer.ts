@@ -2,6 +2,7 @@ import { z } from "zod";
 import { phoneSchema } from "./auth";
 export const beneficiarySchema = z.object({ name: z.string().trim().min(2).max(80), phone: phoneSchema, networkCode: z.enum(["MTN", "AIRTEL", "GLO", "9MOBILE"]).optional() }).strict();
 export const historyQuerySchema = z.object({
+  purchaseType: z.enum(["DATA", "AIRTIME"]).optional(),
   status: z.enum(["PENDING", "SUCCESSFUL", "FAILED"]).optional(),
   network: z.enum(["MTN", "AIRTEL", "GLO", "9MOBILE"]).optional(),
   search: z.string().trim().max(100).default(""),

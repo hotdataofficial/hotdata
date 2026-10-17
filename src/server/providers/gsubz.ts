@@ -1,3 +1,4 @@
+import { airtimeAmount } from "@/lib/airtime";
 import { fetchGsubzCatalog } from "./gsubz-catalog";
 import { HttpError } from "../security/http";
 import { parseNaira } from "@/lib/money";
@@ -69,7 +70,15 @@ export class GsubzProvider implements VtuProvider {
       return gsubzResult(await this.post("/api/pay/",{serviceID:mapping[1],plan:mapping[2],phone,amount:"",requestID:order.reference})); }
     catch { return sending ? {status:"UNKNOWN" as const,code:"GSUBZ_UNCERTAIN"} : {status:"FAILED" as const,code:"GSUBZ_PRICE_CHECK_FAILED"}; }
   }
-  async buyAirtime(): Promise<never> { throw new HttpError(503,"Gsubz airtime is not enabled."); }
+  async buyAirtime(order: { reference: string; phone: string; networkCode: string; amountKobo: bigint }): Promise<ProviderResult> {
+    if (!gsubzPurchasesEnabled()) throw new HttpError(503, "Real purchases are disabled.");
+    const services: Record<string, string> = { MTN: "mtn", AIRTEL: "airtel", GLO: "glo", "9MOBILE": "etisalat" };
+    const serviceID = services[order.networkCode], phone = order.phone.replace(/^\+234/, "0");
+    if (!serviceID || !/^0[789]\d{9}$/.test(phone) || !airtimeAmount.safeParse(order.amountKobo.toString()).success) return { status: "FAILED", code: "INVALID_AIRTIME_REQUEST" };
+    // One stable requestID per intended delivery. A transport failure never proves non-delivery.
+    try { return gsubzResult(await this.post("/api/pay/", { serviceID, amount: (order.amountKobo / 100n).toString(), phone, requestID: order.reference })); }
+    catch { return { status: "UNKNOWN", code: "GSUBZ_UNCERTAIN" }; }
+  }
   async checkStatus(reference: string, providerTransactionId?: string) { const id = providerTransactionId && /^\d{1,30}$/.test(providerTransactionId) ? providerTransactionId : undefined; try { return {...gsubzStatusResult(await this.post("/api/verify/",{requestID:id || reference})), ...(id ? {providerTransactionId:id} : {})}; } catch { return {status:"UNKNOWN" as const,code:"GSUBZ_UNCERTAIN",...(id ? {providerTransactionId:id} : {})}; } }
   async getBalance() { const result=await this.post("/api/balance/",{}); if (typeof result.balance !== "string" && typeof result.balance !== "number") throw new HttpError(502,"Invalid Gsubz balance response."); return gsubzCost(result.balance); }
   async getPlans(): Promise<{code:string;name:string}[]> { return (await fetchGsubzCatalog()).plans.map(plan=>({code:plan.providerPlanCode,name:plan.name})); }
