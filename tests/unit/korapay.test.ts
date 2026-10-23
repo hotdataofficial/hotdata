@@ -51,6 +51,19 @@ describe("Korapay checkout and payment verification", () => {
       response(data); await expect(new KorapayGateway().verify("HD-test")).rejects.toMatchObject({ status: 409 });
     }
   });
+  it("credits only the confirmed principal when the payer pays the gateway fee", async () => {
+    vi.stubEnv("KORAPAY_SECRET_KEY", key);
+    response({ ...charge, amount: "1000.00", amount_paid: "1016.13", amount_accepted: "1000.00", fee: "16.13" });
+    await expect(new KorapayGateway().verify("HD-test")).resolves.toMatchObject({ status: "success", amountKobo: 100000n });
+  });
+  it("rejects fee-inclusive payments without matching accepted principal and exact fees", async () => {
+    vi.stubEnv("KORAPAY_SECRET_KEY", key);
+    const base = { ...charge, amount: "1000.00", amount_paid: "1016.13", amount_accepted: "1000.00", fee: "16.13" };
+    for (const patch of [{ amount_accepted: undefined }, { amount_accepted: "1016.13" }, { amount_accepted: "999.99" }, { fee: "16.12" }, { fee: undefined }, { amount_paid: "1016.14" }, { transaction_status: "overpaid" }]) {
+      response({ ...base, ...patch });
+      await expect(new KorapayGateway().verify("HD-test")).rejects.toMatchObject({ status: 409 });
+    }
+  });
   it("blocks live keys by default and leaves dedicated accounts unavailable", async () => {
     vi.stubEnv("KORAPAY_SECRET_KEY", "sk_live_fixture_only"); vi.stubEnv("KORAPAY_ALLOW_LIVE", "false");
     await expect(new KorapayGateway().verify("HD-test")).rejects.toMatchObject({ status: 503 });

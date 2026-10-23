@@ -7,7 +7,7 @@ async function inspectFunding(key){
   const rows=await db.fundingTransaction.findMany({where:{gateway:"korapay",status:"PENDING",checkoutUrl:{not:null}},take:5,orderBy:{createdAt:"desc"},select:{reference:true,gatewayReference:true,amountKobo:true,payerEmail:true}});
   const checks=[];
   for(const row of rows){
-   try{const r=await request("https://api.korapay.com/merchant/api/v1/charges/"+encodeURIComponent(row.gatewayReference||row.reference),{headers:{Authorization:"Bearer "+key}});const d=r.body.data||{};const amountMatches=v=>{try{return kobo(v)===row.amountKobo}catch{return false}};checks.push({http:r.http,apiAccepted:r.body.status===true,chargeStatus:["success","failed","pending","processing"].includes(d.status)?d.status:"OTHER",transactionStatus:["success","underpaid","overpaid"].includes(d.transaction_status)?d.transaction_status:"OTHER",referenceMatches:d.reference===row.reference,merchantReferenceMatches:d.payment_reference===row.reference,amountMatches:amountMatches(d.amount),paidAmountMatches:amountMatches(d.amount_paid),hasAmountPaid:d.amount_paid!==undefined,emailMatches:typeof d.customer?.email==="string"&&d.customer.email.toLowerCase()===row.payerEmail?.toLowerCase(),fieldNames:Object.keys(d).filter(k=>/^[a-z_]{1,40}$/.test(k))});}catch{checks.push({verificationUnavailable:true})}
+   try{const r=await request("https://api.korapay.com/merchant/api/v1/charges/"+encodeURIComponent(row.gatewayReference||row.reference),{headers:{Authorization:"Bearer "+key}});const d=r.body.data||{};const amountMatches=v=>{try{return kobo(v)===row.amountKobo}catch{return false}};const safeAmount=v=>{try{return kobo(v).toString()}catch{return undefined}};checks.push({http:r.http,apiAccepted:r.body.status===true,chargeStatus:["success","failed","pending","processing"].includes(d.status)?d.status:"OTHER",transactionStatus:["success","underpaid","overpaid"].includes(d.transaction_status)?d.transaction_status:"OTHER",referenceMatches:d.reference===row.reference,merchantReferenceMatches:d.payment_reference===row.reference,amountMatches:amountMatches(d.amount),paidAmountMatches:amountMatches(d.amount_paid),expectedKobo:row.amountKobo.toString(),requestedKobo:safeAmount(d.amount),paidKobo:safeAmount(d.amount_paid),acceptedKobo:safeAmount(d.amount_accepted),acceptedKobo:safeAmount(d.amount_accepted),feeKobo:safeAmount(d.fee),merchantBearsCost:typeof d.merchant_bears_cost==="boolean"?d.merchant_bears_cost:undefined,hasAmountPaid:d.amount_paid!==undefined,emailMatches:typeof d.customer?.email==="string"&&d.customer.email.toLowerCase()===row.payerEmail?.toLowerCase(),fieldNames:Object.keys(d).filter(k=>/^[a-z_]{1,40}$/.test(k))});}catch{checks.push({verificationUnavailable:true})}
   }
   console.log("HOTDATA_PENDING_FUNDING_CHECK "+JSON.stringify(checks));
  }finally{await db.$disconnect()}
@@ -37,9 +37,9 @@ async function inspectDelivery(key){
   try{
    const r=await request("https://api.gsubz.com/api/balance/",{method:"POST",headers:{Authorization:"Bearer "+providerKey,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({api:providerKey})});
    if(r.ok&&r.body.balance!==undefined){
-    const balance=kobo(r.body.balance);result.gsubz.authenticated=true;result.gsubz.funded=balance>0n;
+    const balance=kobo(Number(r.body.balance).toFixed(2));result.gsubz.authenticated=true;result.gsubz.funded=balance>0n;
     const groups=await Promise.all(services.map(async service=>{const p=await request("https://api.gsubz.com/api/plans/?service="+service);if(!p.ok||!Array.isArray(p.body.plans))throw Error("Catalog unavailable");return p.body.plans;}));
-    for(const p of groups.flat()){const cost=kobo(p.api_price);if(cost>0n){result.gsubz.totalPlans++;if(balance>=cost)result.gsubz.affordablePlans++;}}
+    for(const p of groups.flat()){const cost=kobo(Number(p.api_price).toFixed(2));if(cost>0n){result.gsubz.totalPlans++;if(balance>=cost)result.gsubz.affordablePlans++;}}
    }
   }catch{result.gsubz.connectionUnavailable=true;}
  }

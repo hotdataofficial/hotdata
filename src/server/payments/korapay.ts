@@ -23,6 +23,8 @@ export function korapayAmountKobo(value: string | number) {
 const chargeSchema = z.object({
   reference: z.string().min(1), status: z.string(),
   amount: z.union([z.string(), z.number()]), amount_paid: z.union([z.string(), z.number()]),
+  amount_accepted: z.union([z.string(), z.number()]).optional(),
+  fee: z.union([z.string(), z.number()]).optional(),
   currency: z.string(), customer: z.object({ email: z.email() }),
   payment_method: z.string().optional(), transaction_status: z.string().optional(),
 });
@@ -64,8 +66,14 @@ export class KorapayGateway implements PaymentGateway {
     const data = chargeSchema.parse(await this.api("/charges/" + encodeURIComponent(reference)));
     if (data.reference !== reference) throw new HttpError(409, "Payment reference mismatch.");
     const requested = korapayAmountKobo(data.amount), paid = korapayAmountKobo(data.amount_paid);
-    if (data.status === "success" && (requested !== paid || (data.transaction_status && data.transaction_status !== "success"))) throw new HttpError(409, "Payment amount requires review.");
-    return { reference: data.reference, status: data.status, amountKobo: paid, currency: data.currency,
+    const accepted = data.amount_accepted === undefined ? paid : korapayAmountKobo(data.amount_accepted);
+    const fee = data.fee === undefined ? 0n : korapayAmountKobo(data.fee);
+    // Checkout may collect the principal plus its processing fee from the payer.
+    // Only the gateway-confirmed principal becomes wallet value; never its fee.
+    const principalConfirmed = accepted === requested &&
+      (paid === requested || (data.amount_accepted !== undefined && fee > 0n && paid === requested + fee));
+    if (data.status === "success" && (!principalConfirmed || (data.transaction_status && data.transaction_status !== "success"))) throw new HttpError(409, "Payment amount requires review.");
+    return { reference: data.reference, status: data.status, amountKobo: data.status === "success" ? requested : accepted, currency: data.currency,
       email: data.customer.email.toLowerCase(), customerCode: "", channel: data.payment_method || "checkout",
       domain: this.key().startsWith("sk_live_") ? "live" : "test" };
   }

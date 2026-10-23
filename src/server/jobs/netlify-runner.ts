@@ -15,17 +15,18 @@ export async function hasNetlifyWork() {
   return !!(await db.fundingTransaction.findFirst({ where: recoverableFundingWhere(), select: { id: true } }) || await db.outboxEvent.findFirst({ where: { kind: { in: workKinds }, deliveredAt: null, availableAt: { lte: now }, OR: [{kind:{notIn:["EMAIL_FUNDING","EMAIL_PURCHASE"]}},{attempts:{lt:10}}] }, select: { id: true } }) ||
     await db.transaction.findFirst({ where: { type: { in: ["DATA", "AIRTIME"] }, status: "PENDING", updatedAt: { lte: new Date(Date.now() - 60000) }, OR: [{ processingUntil: null }, { processingUntil: { lte: now } }] }, select: { id: true } }));
 }
-export async function runNetlifyJobs() {
+export async function runNetlifyJobs(options: { budgetMs?: number; maxEvents?: number } = {}) {
   // Database-wide lease bounds duplicate wake-ups. Purchase-level leases remain authoritative.
   await db.outboxEvent.upsert({ where: { dedupeKey: leaseKey }, create: { dedupeKey: leaseKey, kind: "WORKER_LEASE", payload: {}, availableAt: new Date(0) }, update: {} });
-  const leaseUntil = new Date(Date.now() + 14 * 60000);
+  const budgetMs = Math.min(8 * 60000, Math.max(1000, options.budgetMs ?? 8 * 60000));
+  const leaseUntil = new Date(Date.now() + budgetMs + 6 * 60000);
   const acquired = await db.outboxEvent.updateMany({ where: { dedupeKey: leaseKey, availableAt: { lte: new Date() } }, data: { availableAt: leaseUntil, attempts: { increment: 1 } } });
   if (!acquired.count) return;
-  const deadline = Date.now() + 8 * 60000;
+  const deadline = Date.now() + budgetMs;
   const visited = new Set<string>();
   try {
     await reconcilePendingFunding();
-    for (let count = 0; count < 40 && Date.now() < deadline; count++) {
+    for (let count = 0; count < Math.min(40, options.maxEvents ?? 40) && Date.now() < deadline; count++) {
       const event = await db.$transaction(async tx => {
         // Static SQL only; no external strings or identifiers are interpolated.
         const rows = await tx.$queryRawUnsafe<{ id: string }[]>('SELECT id FROM "OutboxEvent" WHERE kind = \'VTU_PURCHASE\' AND "deliveredAt" IS NULL AND "availableAt" <= NOW() ORDER BY "createdAt" FOR UPDATE SKIP LOCKED LIMIT 1');

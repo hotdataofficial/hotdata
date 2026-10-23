@@ -1,7 +1,6 @@
 import { airtimeAmount } from "@/lib/airtime";
 import { fetchGsubzCatalog } from "./gsubz-catalog";
 import { HttpError } from "../security/http";
-import { parseNaira } from "@/lib/money";
 import type { DataOrder, ProviderResult, VtuProvider } from "./types";
 const origin = "https://api.gsubz.com";
 // Supplier discounts can contain sub-kobo fractions (e.g. 380.58461538462).
@@ -64,7 +63,7 @@ export class GsubzProvider implements VtuProvider {
         const catalog = await plansResponse.json() as {plans?:{value:string|number;api_price:string|number}[]};
         const plan = catalog.plans?.find(p=>String(p.value)===mapping[2]);
         if (!plan) return {status:"FAILED",code:"GSUBZ_PLAN_REMOVED"};
-        if (parseNaira(String(plan.api_price)) > BigInt(order.expectedCostKobo)) return {status:"FAILED",code:"GSUBZ_PRICE_INCREASED"};
+        if (gsubzCost(plan.api_price) > BigInt(order.expectedCostKobo)) return {status:"FAILED",code:"GSUBZ_PRICE_INCREASED"};
       }
       sending = true;
       return gsubzResult(await this.post("/api/pay/",{serviceID:mapping[1],plan:mapping[2],phone,amount:"",requestID:order.reference})); }

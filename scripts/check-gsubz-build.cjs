@@ -8,7 +8,7 @@ console.log("Korapay configuration: "+(!paymentKey?"MISSING":paymentKey.startsWi
   try{
    const response=await fetch("https://api.gsubz.com/api/balance/",{method:"POST",headers:{Authorization:"Bearer "+key,"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({api:key}),redirect:"error",signal:AbortSignal.timeout(20000)});
    const result=await response.json();
-   const valid=response.ok&&/^[0-9]+(?:[.][0-9]{1,2})?$/.test(String(result.balance));
+   const valid=response.ok&&/^[0-9]+(?:[.][0-9]{1,15})?$/.test(String(result.balance));
    console.log(valid?"Gsubz authentication check: VERIFIED (no purchase sent).":"Gsubz authentication check: FAILED (HTTP "+response.status+").");
    return;
   }catch{if(attempt===1)console.log("Gsubz authentication check: connection unavailable; not verified.");}

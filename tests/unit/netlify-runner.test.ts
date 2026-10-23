@@ -39,4 +39,11 @@ describe("Netlify durable runner",()=>{
   mocks.findMany.mockResolvedValue([{id:"pending-order"}]);await runNetlifyJobs();
   expect(mocks.process).toHaveBeenCalledExactlyOnceWith("pending-order");
  });
+ it("bounds newly claimed events for short serverless executions",async()=>{
+  mocks.claim.mockResolvedValue([{id:"event1"}]);
+  mocks.update.mockResolvedValue({id:"event1",payload:{transactionId:"order1"}});
+  await runNetlifyJobs({budgetMs:120000,maxEvents:1});
+  expect(mocks.claim).toHaveBeenCalledTimes(1);
+  expect(mocks.process).toHaveBeenCalledTimes(1);
+ });
 });

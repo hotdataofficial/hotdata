@@ -29,6 +29,13 @@ it("checks supplier price before spending and rejects increases",async()=>{
  expect(await new GsubzProvider().buyData({reference:"HD-test",phone:"+2348031234567",networkCode:"MTN",providerPlanCode:"mtn_sme:260",expectedCostKobo:"20000"})).toMatchObject({status:"FAILED",code:"GSUBZ_PRICE_INCREASED"});
  expect(call).toHaveBeenCalledTimes(1);expect(call.mock.calls[0][0]).toContain("/api/plans/");
 });
+it("accepts a matching sub-kobo supplier price before sending the order once",async()=>{
+ vi.stubEnv("GSUBZ_API_KEY","fixture");vi.stubEnv("GSUBZ_ALLOW_LIVE","true");vi.stubEnv("KORAPAY_ALLOW_LIVE","true");
+ const call=vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({plans:[{value:"260",api_price:"380.58461538462"}]}))).mockResolvedValueOnce(new Response(JSON.stringify({code:200,status:"successful",transactionID:123})));
+ vi.stubGlobal("fetch",call);
+ expect(await new GsubzProvider().buyData({reference:"HD-fraction",phone:"08031234567",networkCode:"MTN",providerPlanCode:"mtn_sme:260",expectedCostKobo:"38058"})).toMatchObject({status:"SUCCESSFUL"});
+ expect(call).toHaveBeenCalledTimes(2);expect(call.mock.calls[1][1].body.get("requestID")).toBe("HD-fraction");
+});
 it("treats a failed preflight as uncharged, and transport failure after sending as uncertain",async()=>{
  vi.stubEnv("GSUBZ_API_KEY","fixture");vi.stubEnv("GSUBZ_ALLOW_LIVE","true");vi.stubEnv("KORAPAY_ALLOW_LIVE","true");
  const call=vi.fn().mockRejectedValue(new Error("network unavailable"));vi.stubGlobal("fetch",call);

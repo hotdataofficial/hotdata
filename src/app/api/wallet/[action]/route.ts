@@ -12,7 +12,9 @@ import { body, checkCsrf, clientIp, endpoint, HttpError, json } from "@/server/s
 import { rateLimit } from "@/server/security/rate-limit";
 import { proofStorageAvailable } from "@/lib/proof-storage";
 import { requestBytes } from "@/server/security/request-bytes";
+import { scheduleVercelWork } from "@/server/jobs/netlify-trigger";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 type Context = { params: Promise<{ action: string }> };
 const serialize = (value: unknown) => JSON.parse(JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v));
 export async function GET(req: NextRequest, context: Context) {
@@ -21,6 +23,7 @@ export async function GET(req: NextRequest, context: Context) {
     const actor = await requireActor(req);
     await rateLimit("wallet-read", actor.id, 120, 60);
     if (action === "summary") {
+      await scheduleVercelWork();
       const wallet = await db.wallet.findUnique({ where: { userId: actor.id }, select: { balanceKobo: true, currency: true, entries: { take: 20, orderBy: { createdAt: "desc" }, select: { reference: true, type: true, amountKobo: true, balanceAfterKobo: true, description: true, createdAt: true } } } });
       const accounts = await db.virtualAccount.findMany({ where: { userId: actor.id, active: true }, select: { accountNumber: true, accountName: true, bankName: true } });
       const funding = await db.fundingTransaction.findMany({ where: { userId: actor.id }, take: 10, orderBy: { createdAt: "desc" }, select: { reference: true, amountKobo: true, feeKobo: true, status: true, gateway: true, reviewRequired: true, createdAt: true } });

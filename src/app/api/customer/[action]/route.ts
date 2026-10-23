@@ -8,12 +8,15 @@ import { body, checkCsrf, endpoint, HttpError, json } from "@/server/security/ht
 import { rateLimit } from "@/server/security/rate-limit";
 import { purchaseHistory } from "@/server/services/customer-records";
 import { historyQuerySchema } from "@/lib/validation/customer";
+import { scheduleVercelWork } from "@/server/jobs/netlify-trigger";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 type Context = { params: Promise<{ action: string }> };
 export async function GET(req: NextRequest, context: Context) {
   const { action } = await context.params;
   return endpoint(async req => {
     const actor = await requireActor(req); await rateLimit("customer-read", actor.id, 120, 60);
+    if (action === "history" || action === "dashboard") await scheduleVercelWork();
     if (action === "history") return json(await purchaseHistory(actor.id, historyQuerySchema.parse(Object.fromEntries(req.nextUrl.searchParams))));
     if (action === "dashboard") {
       const [user, wallet, accounts, recent, unread, beneficiaries] = await Promise.all([

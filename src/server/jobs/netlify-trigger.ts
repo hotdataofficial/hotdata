@@ -1,6 +1,20 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { netlifyProductionBuild } from "./netlify-context";
 type Environment = Record<string, string | undefined>;
+export function vercelWorkerConfigured(env: Environment = process.env) {
+  return env.VERCEL === "1" && env.VERCEL_ENV === "production" && env.HOTDATA_WORKER_MODE === "vercel";
+}
+export async function scheduleVercelWork(env: Environment = process.env) {
+  if (!vercelWorkerConfigured(env)) return false;
+  const { after } = await import("next/server");
+  after(async () => {
+    try {
+      const { hasNetlifyWork, runNetlifyJobs } = await import("./netlify-runner");
+      if (await hasNetlifyWork()) await runNetlifyJobs({ budgetMs: 120000, maxEvents: 10 });
+    } catch { console.warn("Durable background work will retry on the next wake-up."); }
+  });
+  return true;
+}
 // Domain separation avoids sending the application authentication secret itself.
 function workerSecret(env: Environment) {
   if (env.HOTDATA_WORKER_SECRET !== undefined && env.HOTDATA_WORKER_SECRET !== "") return /^[a-f0-9]{64}$/.test(env.HOTDATA_WORKER_SECRET) ? env.HOTDATA_WORKER_SECRET : undefined;
@@ -17,6 +31,7 @@ export function workerAuthorized(request: Request, env: Environment = process.en
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 export async function wakeNetlifyWorker(env: Environment = process.env, send: typeof fetch = fetch) {
+  if (await scheduleVercelWork(env)) return true;
   if (!netlifyWorkerConfigured(env)) return false;
   try {
     const origin = new URL(env.APP_URL || "");
